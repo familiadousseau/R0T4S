@@ -1,0 +1,17 @@
+{
+  "name": "R0T4S — Otimização de Rotas para Entregadores",
+  "short_name": "Rotas",
+  "description": "Captura de moradas por câmara, leitura de códigos, otimização de rotas e exportação para Spoke/PDF.",
+  "lang": "pt-PT",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1B5E20",
+  "theme_color": "#1B5E20",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
