@@ -1,0 +1,3274 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<title>Rotas</title>
+<meta name="application-name" content="Rotas">
+<meta name="apple-mobile-web-app-title" content="Rotas">
+<meta name="theme-color" content="#1B5E20">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231B5E20'/%3E%3Ccircle cx='32' cy='26' r='13' fill='%23FFF176'/%3E%3Cpolygon points='24,35 40,35 32,48' fill='%23FFF176'/%3E%3Ccircle cx='32' cy='26' r='6.5' fill='%231B5E20'/%3E%3Ccircle cx='32' cy='26' r='2.5' fill='%23FFF176'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  :root{
+    --verde:#1B5E20;
+    --verde-claro:#E8F5E9;
+    --verde-mid:#43A047;
+    --papel:#FAFDF9;
+    --tinta:#14261A;
+    --cinza:#6B7A6E;
+    --alerta:#C24B24;
+    --linha:#D3E4D5;
+    --raio:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+
+  /* ---- comportamento de aplicação ---- */
+  html,body{
+    height:100%;margin:0;padding:0;
+    overflow:hidden;                 /* nada de scroll na página inteira */
+    overscroll-behavior:none;        /* sem "bounce" elástico */
+    -webkit-text-size-adjust:100%;   /* o iOS não redimensiona o texto */
+    text-size-adjust:100%;
+    touch-action:pan-y;              /* só scroll vertical: sem pinch-zoom */
+  }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--tinta);line-height:1.45;
+  }
+  #app{
+    width:100vw;
+    height:100dvh;
+    display:flex;flex-direction:column;
+    background:var(--papel);
+    overflow:hidden;position:relative;
+  }
+  @supports not (height:100dvh){ #app{height:100vh} }
+
+  header{
+    flex:none;background:var(--verde);color:#fff;
+    padding:calc(14px + env(safe-area-inset-top)) 18px 14px;
+    box-shadow:0 2px 10px rgba(27,94,32,.25);z-index:10;
+  }
+  header .interior{max-width:840px}
+
+  /* a zona que rola é só esta */
+  main{
+    flex:1;min-height:0;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    padding:16px 14px 24px;
+  }
+  main > .interior{max-width:840px}
+
+  nav{
+    flex:none;background:#fff;border-top:1px solid var(--linha);
+    z-index:20;
+    padding-bottom:env(safe-area-inset-bottom);
+    box-shadow:0 -2px 12px rgba(0,0,0,.06);
+    display:flex;justify-content:center;
+  }
+  nav .interior{display:flex;max-width:840px}
+  @media (min-width:700px){
+    nav button{padding:12px 4px 10px;font-size:12px}
+    nav button .ic{font-size:22px}
+    header h1{font-size:19px}
+  }
+
+  /* nada de zoom automático nos campos ao focar (iOS faz isso abaixo de 16px) */
+  input,textarea,select{font-size:16px !important}
+
+  /* botões e etiquetas não devem ser selecionáveis como texto */
+  .btn,nav button,.num,.ord,.chip,.pista,.cand,.rua,.codchip,.mapbtn{
+    user-select:none;-webkit-user-select:none;
+  }
+
+  header{position:relative;text-align:center}
+  header h1{margin:0;font-size:22px;font-weight:900;letter-spacing:3px}
+  header p{margin:2px 0 0;font-size:11.5px;opacity:.88}
+  .badge-canto{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px}
+  header p{margin:2px 0 0;font-size:12px;opacity:.85}
+  .badge{
+    display:inline-block;background:rgba(255,255,255,.18);border-radius:20px;
+    padding:2px 10px;font-size:12px;font-weight:600;margin-left:6px;
+  }
+  .painel{display:none}
+  .painel.ativo{display:block;animation:sobe .25s ease}
+  @keyframes sobe{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  h2{font-size:15px;text-transform:uppercase;letter-spacing:1px;color:var(--verde);
+     margin:0 0 4px;font-weight:800}
+  .dica{font-size:13px;color:var(--cinza);margin:0 0 14px}
+  textarea,input{
+    width:100%;border:1.5px solid var(--linha);border-radius:var(--raio);
+    padding:12px;font-size:15px;font-family:inherit;background:#fff;color:var(--tinta);
+  }
+  textarea{min-height:150px;resize:vertical;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+  input:focus,textarea:focus{outline:none;border-color:var(--verde-mid)}
+  label.campo{display:block;font-size:13px;font-weight:600;margin:0 0 5px;color:var(--verde)}
+  .btn{
+    border:none;border-radius:var(--raio);padding:14px 18px;font-size:15px;font-weight:700;
+    background:var(--verde);color:#fff;width:100%;margin-top:12px;cursor:pointer;
+  }
+  .btn:active{transform:scale(.98)}
+  .btn.sec{background:#fff;color:var(--verde);border:1.5px solid var(--verde)}
+  .btn.mini{width:auto;padding:8px 14px;font-size:13px;margin:0}
+  .mira.mira-fixa{margin-bottom:10px;border-radius:var(--raio);overflow:hidden}
+  .mira-fixa video{width:100%;height:auto;max-height:56vh;display:block}
+  .scan-status{
+    text-align:center;font-size:14px;font-weight:600;padding:10px;border-radius:var(--raio);
+    background:var(--verde-claro);color:var(--verde);margin-bottom:12px;min-height:20px;
+  }
+  .scan-status.erro{background:#FBE9E2;color:var(--alerta)}
+  .manual{display:flex;gap:8px;margin-bottom:14px}
+  .manual input{flex:1}
+  .lista{list-style:none;padding:0;margin:0}
+  .item{
+    display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border-radius:var(--raio);
+    background:#fff;border:1px solid var(--linha);margin-bottom:8px;
+  }
+  .item:nth-child(even){background:var(--verde-claro)}
+  .item.semmorada{border-color:var(--alerta);background:#FDF1EC}
+  .num{
+    flex:none;width:30px;height:30px;border-radius:8px;background:var(--verde);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;
+  }
+  .item.semmorada .num{background:var(--alerta)}
+  .info{flex:1;min-width:0}
+  .info .cod{font-family:ui-monospace,monospace;font-size:12px;color:var(--cinza);word-break:break-all}
+  .info .mor{font-size:14px;font-weight:600;margin-top:1px}
+  .info .mor.faltando{color:var(--alerta);font-weight:600}
+  .rm{flex:none;background:none;border:none;color:var(--cinza);font-size:20px;cursor:pointer;line-height:1;padding:2px 4px}
+  .vazio{text-align:center;color:var(--cinza);font-size:14px;padding:30px 10px}
+  .resumo{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .chip{background:var(--verde-claro);color:var(--verde);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:700}
+  .chip.aviso{background:#FDF1EC;color:var(--alerta)}
+  nav button{
+    flex:1;border:none;background:none;padding:10px 4px 8px;font-size:11px;font-weight:600;
+    color:var(--cinza);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;
+  }
+  nav button.ativo{color:var(--verde)}
+  nav button{font-size:10px}
+  nav button .ic{font-size:19px;line-height:1}
+  nav button.ativo .ic{transform:scale(1.1)}
+  .passo{font-size:12px;color:var(--cinza);margin-bottom:10px}
+  .otim-item{padding:12px;border-radius:var(--raio);background:#fff;border:1px solid var(--linha);margin-bottom:8px;display:flex;gap:10px;align-items:center}
+  .otim-item .ord{flex:none;width:34px;height:34px;border-radius:50%;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800}
+  .otim-item.base .ord{background:var(--tinta)}
+  .prog{height:6px;background:var(--linha);border-radius:6px;overflow:hidden;margin:10px 0}
+  .prog > div{height:100%;background:var(--verde-mid);width:0;transition:width .3s}
+  .link-maps{display:block;text-align:center;background:#1a73e8;color:#fff;padding:14px;border-radius:var(--raio);text-decoration:none;font-weight:700;margin-top:10px}
+  details{margin-top:14px;font-size:13px;color:var(--cinza)}
+  summary{cursor:pointer;font-weight:600;color:var(--verde)}
+  code{background:var(--verde-claro);padding:1px 5px;border-radius:4px;font-size:12px}
+  .pacchip{display:inline-block;background:#FFF176;color:#3E2C00;border:1px solid #F9A825;border-radius:6px;padding:2px 8px;font-weight:800;font-size:12px;font-family:inherit}
+  .mapas{display:flex;gap:6px;margin-top:8px}
+  .mapbtn{border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;color:#fff}
+  .mapbtn.g{background:#1a73e8}
+  .mapbtn.a{background:#000}
+  .mapbtn:active{opacity:.8}
+  .otim-item{align-items:flex-start}
+  .otim-item.multi{border-color:#F9A825;background:#FFFDF3}
+  .item .ed{flex:none;background:none;border:none;color:var(--verde);font-size:17px;cursor:pointer;padding:2px 3px}
+  .edit-box{margin-top:8px}
+  .edit-box textarea{min-height:60px;font-size:14px;font-family:inherit}
+  .edit-box .dupla{display:flex;gap:8px;margin-top:8px}
+  .linha-v{display:flex;gap:10px;padding:9px 0;border-bottom:1px dashed var(--linha);font-size:14px}
+  .linha-v:last-of-type{border-bottom:none}
+  .v-l{flex:none;width:64px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--verde);padding-top:2px}
+  .v-v{flex:1;color:var(--tinta);word-break:break-word}
+  .v-v.falta{color:var(--alerta);font-style:italic}
+  .conf-topo{display:flex;align-items:center;gap:12px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--linha)}
+  .conf-num{flex:none;background:var(--verde);color:#fff;border-radius:12px;padding:8px 12px;text-align:center;min-width:64px}
+  .conf-num-l{display:block;font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.9}
+  .conf-num-v{display:block;font-size:32px;font-weight:800;line-height:1.05}
+  .conf-txt{font-size:12px;color:var(--cinza);line-height:1.45}
+  .conf-txt b{color:var(--verde);font-size:13px}
+  .sessao{margin-bottom:14px}
+  .sessao-bar{display:flex;align-items:center;justify-content:space-between;background:var(--verde-claro);border:1.5px solid var(--verde-mid);border-radius:var(--raio);padding:10px 14px}
+  .sessao-lbl{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--verde)}
+  .sessao-n{font-size:26px;font-weight:800;color:var(--verde);line-height:1}
+  .marcar{background:var(--verde);color:#fff;border-radius:var(--raio);padding:20px 16px;text-align:center;margin-top:14px;animation:sobe .3s ease}
+  .marcar-t{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;opacity:.85}
+  .marcar-n{font-size:76px;font-weight:800;line-height:1.05;margin:4px 0}
+  .marcar-d{font-size:13px;opacity:.9;margin-bottom:12px;line-height:1.4}
+  .marcar .btn{background:#fff;color:var(--verde)}
+  .codlist{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:4px}
+  .codchip{display:flex;align-items:center;gap:6px;background:var(--verde-claro);color:var(--verde);border:1px solid var(--verde-mid);border-radius:20px;padding:5px 8px 5px 10px;font-size:12px;font-family:ui-monospace,monospace;font-weight:700}
+  .codchip .t{font-size:9px;background:var(--verde);color:#fff;border-radius:10px;padding:1px 5px;letter-spacing:.5px;font-family:inherit}
+  .codchip .x{background:none;border:none;color:var(--verde);font-size:15px;cursor:pointer;padding:0 2px;line-height:1}
+  .codvazio{font-size:12px;color:var(--cinza);font-style:italic}
+  .ditado{margin-bottom:14px}
+  .btn.gravando{background:#C24B24;animation:pulsa 1.2s infinite}
+  @keyframes pulsa{0%,100%{opacity:1}50%{opacity:.75}}
+  .mic-interim{background:#12210F;color:#D6F5D9;border-radius:var(--raio);padding:10px 12px;font-size:14px;font-style:italic;margin-top:8px;min-height:20px}
+  .dit-item{background:#fff;border:1.5px solid var(--verde-mid);border-radius:var(--raio);padding:11px;margin-top:8px}
+  .dit-item textarea{min-height:52px;font-size:14px;font-family:inherit;border-color:var(--linha)}
+  .dit-item .dupla{display:flex;gap:6px;margin-top:8px}
+  .ditar{background:#fff;border:1.5px solid var(--linha);border-radius:var(--raio);padding:14px;margin:14px 0}
+  .ditar-t{font-weight:800;font-size:14px;color:var(--verde);margin-bottom:4px}
+  .ditar-vivo{background:#12210F;color:#D6F5D9;border-radius:10px;padding:10px 12px;margin-top:10px;font-size:13px;line-height:1.5;min-height:20px;font-style:italic}
+  .dit-item{display:flex;gap:8px;align-items:flex-start;background:var(--verde-claro);border:1px solid var(--verde-mid);border-radius:10px;padding:9px;margin-top:8px}
+  .dit-item textarea{flex:1;min-height:44px;border:1px solid var(--linha);border-radius:8px;padding:8px;font-size:14px;font-family:inherit}
+  .dit-item .rm{margin-top:8px}
+  .btn.gravando{background:var(--alerta)}
+  .ac-wrap{position:relative}
+  .ac-lista{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--verde-mid);border-radius:12px;margin-top:4px;z-index:40;box-shadow:0 8px 24px rgba(0,0,0,.14);overflow:hidden;max-height:240px;overflow-y:auto}
+  .ac-item{padding:11px 13px;font-size:13px;line-height:1.4;cursor:pointer;border-bottom:1px solid var(--linha);color:var(--tinta)}
+  .ac-item:last-child{border-bottom:none}
+  .ac-item:active,.ac-item:hover{background:var(--verde-claro)}
+  .ac-item .ac-sec{font-size:11px;color:var(--cinza)}
+  .ac-carregando{padding:11px 13px;font-size:12px;color:var(--cinza);font-style:italic}
+  .falha{display:flex;gap:10px;background:#FDF1EC;border:1px solid var(--alerta);border-radius:var(--raio);padding:11px;margin-bottom:8px}
+  .falha-n{flex:none;width:30px;height:30px;border-radius:8px;background:var(--alerta);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
+  .falha-i{flex:1;min-width:0}
+  .falha-m{font-size:14px;font-weight:600;color:var(--tinta)}
+  .falha-r{font-size:12px;color:var(--alerta);margin:3px 0 7px;line-height:1.4}
+  .ditado{margin-bottom:14px}
+  .voz-painel{background:#fff;border:1.5px solid var(--verde-mid);border-radius:var(--raio);padding:12px;margin-top:10px}
+  .voz-ouvindo{font-size:13px;font-weight:700;color:var(--verde);display:flex;align-items:center;gap:8px}
+  .voz-ouvindo::before{content:"";width:10px;height:10px;border-radius:50%;background:#E53935;animation:pulsa 1.1s infinite}
+  @keyframes pulsa{0%,100%{opacity:1}50%{opacity:.25}}
+  .voz-ouvindo.parado::before{background:var(--cinza);animation:none}
+  .voz-interim{font-size:13px;color:var(--cinza);font-style:italic;min-height:18px;margin:8px 0}
+  .voz-item{display:flex;gap:8px;align-items:flex-start;background:var(--verde-claro);border:1px solid var(--verde-mid);border-radius:10px;padding:9px 10px;margin-bottom:7px}
+  .voz-item textarea{flex:1;border:none;background:transparent;font-size:14px;font-family:inherit;resize:none;min-height:20px;padding:0;color:var(--tinta)}
+  .voz-item textarea:focus{outline:none}
+  .voz-item .rm{flex:none}
+  .dupmark{display:inline-block;background:#F9A825;color:#3E2C00;border-radius:5px;padding:1px 6px;font-size:9px;font-weight:800;letter-spacing:.5px;vertical-align:middle}
+  .fx{margin-top:8px;background:#fff;border:1px solid var(--linha);border-radius:10px;padding:10px}
+  .fx textarea{min-height:56px;font-size:14px;font-family:inherit}
+  .fdica{font-size:11px;color:var(--cinza);margin:6px 0;line-height:1.4}
+  .falha .dupla{display:flex;gap:6px;margin-top:6px}
+  .aviso-mor{font-size:11px;color:#C24B24;background:#FDF1EC;border-radius:6px;padding:5px 7px;margin-top:5px;line-height:1.4}
+  .achado{background:#FFF176;border:2px solid #F9A825;border-radius:var(--raio);padding:16px;margin-top:14px;text-align:center;animation:sobe .22s ease}
+  .achado-l{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6B5200}
+  .achado-n{font-size:64px;font-weight:900;color:#1B5E20;line-height:1;margin:2px 0}
+  .achado-p{display:inline-block;background:var(--verde);color:#fff;border-radius:20px;padding:4px 14px;font-size:13px;font-weight:800;margin:6px 0}
+  .achado-m{font-size:14px;font-weight:700;color:#2A2000;margin-top:6px;line-height:1.4}
+  .achado-c{font-family:ui-monospace,monospace;font-size:11px;color:#5A4600;margin-top:4px}
+  .achado-irm{background:#C24B24;color:#fff;border-radius:8px;padding:8px;font-size:13px;margin-top:8px;line-height:1.4}
+  .achado.nao{background:#FDF1EC;border-color:var(--alerta)}
+  .achado.nao .achado-n{font-size:34px;color:var(--alerta)}
+  .importar{display:block;text-align:center;cursor:pointer}
+  .credito{text-align:center;font-size:11px;color:var(--cinza);padding:18px 0 6px;letter-spacing:.4px}
+  .pre-painel{background:#fff;border:1.5px solid var(--verde-mid);border-radius:var(--raio);padding:14px;margin-bottom:14px}
+  .pre-t{font-weight:800;font-size:14px;color:var(--verde);margin-bottom:4px}
+  .pre-item{display:flex;gap:8px;align-items:flex-start;background:var(--verde-claro);border:1px solid var(--verde-mid);border-radius:10px;padding:9px 10px;margin-bottom:7px}
+  .pre-item .pi{flex:1;min-width:0}
+  .pre-item .pc{font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:var(--verde)}
+  .pre-item .pm{font-size:13px;color:var(--tinta);line-height:1.35}
+  .mf-pre{background:#1B5E20;color:#fff;border-radius:12px;padding:10px;font-size:13px;font-weight:700;margin-bottom:12px}
+  .marcarFull{position:fixed;inset:0;background:#FFF176;z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;animation:sobe .22s ease}
+  .mf-c{width:100%;max-width:420px;text-align:center}
+  .mf-t{font-size:13px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#6B5200}
+  .mf-n{font-size:150px;line-height:1;font-weight:900;color:#1B5E20;margin:2px 0 10px;letter-spacing:-4px;text-shadow:0 3px 0 rgba(0,0,0,.08)}
+  .mf-cx{background:rgba(255,255,255,.75);border:2px solid #F9A825;border-radius:14px;padding:14px;text-align:left;margin-bottom:16px}
+  .mf-l{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#8A6D00}
+  .mf-m{font-size:15px;font-weight:700;color:#2A2000;line-height:1.4}
+  .mf-cod{font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:#5A4600;word-break:break-all}
+  .marcarFull.ja .mf-n{color:#8A6D00}
+  .marcarFull.ja .mf-t{color:#5A4600}
+  .mf-av{background:#C24B24;color:#fff;border-radius:12px;padding:12px;font-size:14px;line-height:1.5;margin-bottom:14px;text-align:left}
+  .mf-ok{background:#1B5E20;color:#fff;font-size:16px;padding:16px}
+  .modal{position:fixed;inset:0;background:rgba(10,20,12,.72);display:flex;align-items:center;justify-content:center;z-index:200;padding:24px;animation:sobe .2s ease}
+  .modal-c{background:#fff;border-radius:18px;padding:24px 20px;max-width:340px;width:100%;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+  .modal-i{width:52px;height:52px;border-radius:50%;background:#FDF1EC;color:var(--alerta);font-size:28px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+  .modal-i.dec{background:var(--verde-claro);color:var(--verde)}
+  .dec-cx{background:var(--verde-claro);border:1px solid var(--verde-mid);border-radius:10px;padding:10px;margin-bottom:14px;text-align:left;font-size:13px;line-height:1.5}
+  .dec-cx b{color:var(--verde)}
+  .modal-c h3{margin:0 0 6px;font-size:17px;color:var(--tinta)}
+  .modal-c p{margin:0 0 16px;font-size:14px;color:var(--cinza);line-height:1.5}
+  .pistas{display:flex;gap:6px;margin-top:10px;justify-content:center}
+  .pista{flex:1;text-align:center;font-size:10px;font-weight:700;padding:7px 4px;border-radius:20px;background:#F0F2F0;color:var(--cinza);border:1.5px solid var(--linha);transition:all .2s}
+  .pista.ok{background:var(--verde-claro);color:var(--verde);border-color:var(--verde-mid)}
+  .btn.parar{background:var(--alerta)}
+  .cands{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+  .cand{text-align:left;background:#fff;border:1.5px solid var(--linha);border-radius:var(--raio);padding:11px 12px;cursor:pointer;font-size:14px;color:var(--tinta);width:100%}
+  .cand.sel{border-color:var(--verde);background:var(--verde-claro)}
+  .cand .tag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;padding:2px 7px;border-radius:20px;margin-bottom:5px}
+  .tag.dest{background:var(--verde);color:#fff}
+  .tag.rem{background:#E0E0E0;color:#555}
+  .tag.dup{background:#EFEBE0;color:#8A7A4E}
+  .val{margin-top:10px;padding:10px 12px;border-radius:var(--raio);font-size:13px;line-height:1.5}
+  .val.ok{background:var(--verde-claro);color:var(--verde);border:1px solid var(--verde-mid)}
+  .val.warn{background:#FDF1EC;color:var(--alerta);border:1px solid var(--alerta)}
+  .val b{font-weight:800}
+  .ruas{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+  .rua{background:#fff;border:1px solid var(--linha);border-radius:20px;padding:5px 10px;font-size:12px;cursor:pointer}
+  .rua:active{background:var(--verde-claro)}
+  .cartao{background:#fff;border:1.5px solid var(--linha);border-radius:var(--raio);padding:14px;margin-bottom:12px}
+  .cartao-t{font-weight:800;font-size:15px;color:var(--verde);margin-bottom:3px}
+  .cartao-d{font-size:13px;color:var(--cinza);margin-bottom:4px}
+  #cam{width:100%;border-radius:var(--raio);background:#000;display:block;border:1.5px solid var(--linha)}
+  .mira{position:relative}
+  .mira::after{content:"";position:absolute;inset:12% 6%;border:2px dashed rgba(255,255,255,.75);border-radius:10px;pointer-events:none}
+  .dupla{display:flex;gap:8px;margin-top:10px}
+  .dupla .btn{margin-top:0}
+  .conf{background:#fff;border:1.5px solid var(--verde-mid);border-radius:var(--raio);padding:14px;margin-top:14px}
+  .conf h3{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--verde)}
+  .conf textarea{min-height:80px;font-size:14px;font-family:inherit}
+  .bruto{font-size:11px;color:var(--cinza);font-family:ui-monospace,monospace;white-space:pre-wrap;max-height:70px;overflow:auto;margin-top:6px;background:var(--verde-claro);padding:6px;border-radius:8px}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <span class="badge badge-canto" id="badgeCount">0 paragens</span>
+  <h1 aria-label="R0T4S">
+    <svg viewBox="0 0 236 40" width="150" height="26" role="img" aria-hidden="true" style="display:block;margin:0 auto">
+      <text x="0" y="31" style="font:800 32px -apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:2px" fill="#FFFFFF">R</text>
+      <circle cx="45" cy="20" r="13" fill="none" stroke="#FFF176" stroke-width="5.5"/>
+      <circle cx="45" cy="20" r="3.5" fill="#FFF176"/>
+      <text x="65" y="31" style="font:800 32px -apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:2px" fill="#FFFFFF">T4S</text>
+      <path d="M156 26 Q176 8 194 18 Q212 28 228 10" fill="none" stroke="#66BB6A" stroke-width="3.5" stroke-dasharray="1 8" stroke-linecap="round"/>
+      <circle cx="230" cy="9" r="4" fill="#FFF176"/>
+    </svg>
+  </h1>
+  <p>Otimização de Rotas para Entregadores</p>
+</header>
+
+
+<main>
+<div class="interior">
+
+  <!-- ===== CAPTURAR (OCR + código) ===== -->
+  <section class="painel ativo" id="p-cap">
+    <h2>1 · Capturar endereços</h2>
+    <p class="dica">Aponta à etiqueta: ele lê a morada do <b>destinatário</b> e os códigos. Confirmas, escreves o número no pacote, e segue.</p>
+
+    <div class="scan-status" id="capStatus">A preparar câmara…</div>
+    <div class="mira mira-fixa" id="miraWrap" style="display:none"><video id="cam" autoplay muted playsinline></video></div>
+
+    <button class="btn" id="btnAuto" onclick="alternarAuto()">▶ Iniciar captura</button>
+    <button class="btn sec" id="btnPre" onclick="alternarPre()" style="margin-top:8px">🌙 Pré-atribuição</button>
+
+    <div class="pistas" id="pistas" style="display:none">
+      <span class="pista" id="pCod">📦 código</span>
+      <span class="pista" id="pCP">📍 código postal</span>
+      <span class="pista" id="pRua">🏠 rua</span>
+      <span class="pista" id="pDest">🎯 destinat.</span>
+    </div>
+
+    <div class="pre-painel" id="prePainel" style="display:none">
+      <div class="pre-t">🌙 Pré-atribuir pacotes</div>
+      <p class="dica" style="margin-bottom:10px">Regista o código e a morada do ecrã do PDA. Amanhã, ao bipar o pacote físico, ele é confirmado na hora.</p>
+      <button class="btn sec" onclick="lerPreEcra()" id="btnPreOCR">📷 Ler do ecrã do PDA</button>
+      <label class="campo" style="margin-top:10px">Código (dígitos do ecrã)</label>
+      <input id="preCod" placeholder="Ex.: 0084729915738" inputmode="text" autocomplete="off">
+      <label class="campo" style="margin-top:10px">Morada</label>
+      <textarea id="preMor" rows="2" placeholder="Rua, nº, código postal, localidade"></textarea>
+      <button class="btn" onclick="juntarPre()">+ Juntar à pré-lista</button>
+      <div class="resumo" id="preResumo" style="margin-top:12px"></div>
+      <div id="preItens"></div>
+      <button class="btn" id="btnPreLista" onclick="preParaLista()" style="display:none">⬆ Passar a pré-lista para a Lista</button>
+      <button class="btn sec" onclick="sairPre()" style="margin-top:8px">■ Terminar pré-atribuição</button>
+    </div>
+
+    <div class="conf" id="confirmar" style="display:none">
+      <div class="conf-topo">
+        <div class="conf-num"><span class="conf-num-l">Pacote</span><span class="conf-num-v" id="confNum">1</span></div>
+        <div class="conf-txt"><b>Confere e confirma</b><br>Corrige o que estiver errado — depois escreves este número no pacote.</div>
+      </div>
+      <div id="candWrap" style="display:none">
+        <label class="campo">Qual é o destinatário?</label>
+        <div class="cands" id="cands"></div>
+      </div>
+
+      <div id="vistaLeitura">
+        <div class="linha-v"><span class="v-l">Morada</span><span class="v-v" id="vMorada">—</span></div>
+        <div class="linha-v"><span class="v-l">Códigos</span><span class="v-v" id="vCods">—</span></div>
+        <button class="btn sec" onclick="modoCorrigir()">✏️ Corrigir</button>
+      </div>
+
+      <div id="vistaEdicao" style="display:none">
+        <label class="campo">Morada do destinatário</label>
+        <textarea id="capMorada" placeholder="Rua, nº, código postal, localidade"></textarea>
+        <button class="btn sec" onclick="validarMorada()" id="btnVal">Validar no código postal</button>
+        <div id="valResult"></div>
+        <label class="campo" style="margin-top:10px">Códigos do pacote (QR e barras)</label>
+        <div class="codlist" id="codList"></div>
+        <div class="manual" style="margin-bottom:0">
+          <input id="capCodigo" placeholder="Junta outro código à mão">
+          <button class="btn mini" onclick="juntarCodManual()">Juntar</button>
+        </div>
+      </div>
+
+      <button class="btn" onclick="gravarPar()">✓ Confirmar e juntar à lista</button>
+      <button class="btn sec" onclick="limparCap()">Descartar</button>
+    </div>
+
+    <div class="resumo" id="capResumo" style="margin-top:14px"></div>
+  </section>
+
+  <!-- ===== LISTA ===== -->
+  <section class="painel" id="p-lista">
+    <h2>2 · Lista de pacotes</h2>
+    <p class="dica">Todos os pacotes bipados. Podes corrigir ou apagar. Quando estiver tudo, finaliza para otimizar a rota.</p>
+    <div class="ditado">
+      <button class="btn sec" id="btnVoz" onclick="alternarVoz()">🎤 Ditar moradas por voz</button>
+      <div class="voz-painel" id="vozPainel" style="display:none">
+        <div class="voz-ouvindo" id="vozStatus">A ouvir…</div>
+        <div class="voz-interim" id="vozInterim"></div>
+        <div id="vozItens"></div>
+        <button class="btn" id="btnVozAdd" onclick="adicionarVoz()" style="display:none">✓ Juntar à lista</button>
+      </div>
+    </div>
+    <div class="resumo" id="listaResumo"></div>
+    <ul class="lista" id="listaPac"><li class="vazio">Ainda sem pacotes. Vai a Capturar ou dita por voz.</li></ul>
+    <button class="btn" id="btnFinal" onclick="finalizarLista()">✓ Finalizar lista e otimizar</button>
+    <button class="btn sec" onclick="novaLista()" style="margin-top:8px">🗑 Começar lista nova</button>
+    <details>
+      <summary>Colar uma lista já pronta</summary>
+      <p>Formato: <code>códigos; morada</code> por linha. Vários códigos do mesmo pacote separados por <code>|</code>.</p>
+      <textarea id="refInput" placeholder="CÓDIGO1 | CÓDIGO2; Rua Exemplo nº 12, 0000-000 Localidade"></textarea>
+      <button class="btn sec" onclick="carregarRef()">Carregar texto</button>
+      <label class="btn sec importar" style="margin-top:8px">
+        📁 Importar ficheiro (CSV, TXT ou PDF)
+        <input type="file" id="ficheiroImport" accept=".csv,.txt,.pdf" onchange="importarFicheiro(this)" style="display:none">
+      </label>
+      <div class="scan-status" id="refStatus" style="margin-top:10px;display:none"></div>
+    </details>
+  </section>
+
+  <!-- ===== LOCALIZAR PACOTE ===== -->
+  <section class="painel" id="p-scan">
+    <h2>3 · Localizar pacote</h2>
+    <p class="dica">Bipa um pacote e ele diz-te o <b>número</b> que lhe foi atribuído e em que <b>paragem</b> entra.</p>
+    <div class="scan-status" id="scanStatus">Câmara parada.</div>
+    <div class="mira"><video id="cam2" autoplay muted playsinline style="width:100%;border-radius:14px;background:#000;display:block"></video></div>
+    <button class="btn" id="btnScan" onclick="alternarScan()">▶ Iniciar leitura</button>
+    <div class="manual" style="margin-top:10px">
+      <input id="manualCode" placeholder="Ou escreve o código">
+      <button class="btn mini" onclick="addManual()">Procurar</button>
+    </div>
+
+    <div id="achado" style="display:none"></div>
+
+    <div class="resumo" id="scanResumo"></div>
+    <ul class="lista" id="scanLista"></ul>
+  </section>
+
+  <!-- ===== OTIMIZAR ===== -->
+  <section class="painel" id="p-otim">
+    <h2>4 · Otimizar rota</h2>
+    <p class="dica">Define a base fixa. A app coloca as moradas no mapa e calcula a melhor ordem a partir daí.</p>
+    <label class="campo">Ponto de partida</label>
+    <div class="ac-wrap">
+      <input id="baseInput" placeholder="Escreve a morada do armazém ou base" oninput="baseDigitada()" autocomplete="off">
+      <div class="ac-lista" id="acLista" style="display:none"></div>
+    </div>
+    <button class="btn sec" id="btnGPS" onclick="usarLocalizacao()">📍 Usar a minha localização atual</button>
+    <button class="btn" id="btnOtim" onclick="otimizar()">Calcular melhor ordem</button>
+    <div class="prog" id="progWrap" style="display:none"><div id="progBar"></div></div>
+    <div class="scan-status" id="otimStatus" style="display:none"></div>
+    <button class="btn" id="btnRecalc" onclick="otimizar()" style="display:none">🔄 Recalcular rota</button>
+    <div id="falhasBox"></div>
+    <div id="pendBox"></div>
+    <div id="otimResult"></div>
+  </section>
+
+  <!-- ===== EXPORTAR ===== -->
+  <section class="painel" id="p-export">
+    <h2>5 · Exportar</h2>
+    <p class="dica">Escolhe conforme o telemóvel que vais levar. A ordem otimizada é usada nos dois, se a tiveres calculado.</p>
+    <div class="cartao">
+      <div class="cartao-t">🤖 Android — Spoke</div>
+      <div class="cartao-d">CSV com Address Line 1 · City · Zip/Postal Code · ID. O nº do pacote vai no fim do Address Line 1, entre parênteses.</div>
+      <button class="btn" onclick="exportCSV()">Descarregar CSV</button>
+    </div>
+    <div class="cartao">
+      <div class="cartao-t">🍎 iPhone — folha de rota</div>
+      <div class="cartao-d">Três páginas: folha de rota, mapa de carga (ordem de arrumação no carro) e índice por pacote.</div>
+      <button class="btn" onclick="exportPDF()">Descarregar PDF</button>
+    </div>
+    <button class="btn sec" onclick="copiarLista()">Copiar lista de moradas</button>
+    <div class="scan-status" id="expStatus" style="display:none"></div>
+    <div class="resumo" id="expResumo" style="margin-top:14px"></div>
+  </section>
+</div>
+<div class="credito">Elaborado por Renan Guimarães</div>
+</main>
+
+<nav>
+ <div class="interior">
+  <button class="ativo" data-p="cap" onclick="ir('cap')"><span class="ic">🔎</span>Capturar</button>
+  <button data-p="lista" onclick="ir('lista')"><span class="ic">📋</span>Lista</button>
+  <button data-p="scan" onclick="ir('scan')"><span class="ic">📷</span>Scanner</button>
+  <button data-p="otim" onclick="ir('otim')"><span class="ic">🗺️</span>Otimizar</button>
+  <button data-p="export" onclick="ir('export')"><span class="ic">⬇️</span>Exportar</button>
+ </div>
+</nav>
+</div><!-- /#app -->
+
+<div id="marcarFull" class="marcarFull" style="display:none">
+  <div class="mf-c">
+    <div class="mf-t">✍️ Escreve este número no pacote</div>
+    <div class="mf-n" id="mfN">1</div>
+    <div class="mf-cx">
+      <div class="mf-l">Morada</div>
+      <div class="mf-m" id="mfM"></div>
+      <div class="mf-l" style="margin-top:8px">Códigos</div>
+      <div class="mf-cod" id="mfC"></div>
+    </div>
+    <div class="mf-pre" id="mfPre" style="display:none">✓ Pré-atribuído confirmado pelo código de barras</div>
+    <div class="mf-av" id="mfAviso" style="display:none"></div>
+    <button class="btn mf-ok" onclick="jaMarquei()">✓ Já marquei — próximo pacote</button>
+  </div>
+</div>
+
+<div id="jaAtrib" class="marcarFull ja" style="display:none">
+  <div class="mf-c">
+    <div class="mf-t" id="jaT">📦 Este pacote já foi atribuído</div>
+    <div class="mf-n" id="jaN">1</div>
+    <div class="mf-cx">
+      <div class="mf-l">Morada</div>
+      <div class="mf-m" id="jaM"></div>
+      <div class="mf-l" style="margin-top:8px">Códigos</div>
+      <div class="mf-cod" id="jaC"></div>
+    </div>
+    <div class="mf-av" id="jaIrm" style="display:none"></div>
+    <button class="btn mf-ok" onclick="okJaAtribuido()">OK — voltar</button>
+  </div>
+</div>
+
+<div id="modalTrab" class="modal" style="display:none">
+  <div class="modal-c">
+    <div class="modal-i" style="background:var(--verde-claro);color:var(--verde)">💾</div>
+    <h3>Trabalho em curso encontrado</h3>
+    <p id="trabM"></p>
+    <button class="btn" onclick="retomarTrabalho()">▶ Continuar onde ficaste</button>
+    <button class="btn sec" onclick="descartarTrabalho()" style="margin-top:8px">🗑 Começar do zero</button>
+  </div>
+</div>
+
+<div id="modal" class="modal" style="display:none">
+  <div class="modal-c">
+    <div class="modal-i" id="modalI">!</div>
+    <h3 id="modalT">Erro</h3>
+    <p id="modalM"></p>
+    <button class="btn" onclick="fecharModal()">Entendi</button>
+  </div>
+</div>
+
+<script>
+// ---------- Estado ----------
+// A cidade nunca é assumida: vem do código postal (base dos CTT) quando falta.
+const cacheCidadeCP = {};   // cp → "Freguesia, Concelho"
+let referencia = {};        // { codigo: morada }
+let pacotes = [];           // { code, morada, lat, lon, ordem }
+let baseCoord = null;
+let scanner = null, scannerOn = false;
+
+
+// ================= CAPTURA (OCR + código) =================
+let camStream=null, camAtiva=false, ocrWorker=null, capPares=0;
+
+async function iniciarCam(){
+  if(camAtiva){ mostrarCam(true); return true; }
+  const st=document.getElementById('capStatus');
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080} }
+    });
+    document.getElementById('cam').srcObject=camStream;
+    camAtiva=true;
+    mostrarCam(true);
+    st.className='scan-status'; st.textContent='Câmara pronta — enquadra a etiqueta.';
+    return true;
+  }catch(e){
+    camAtiva=false;
+    const m = e.name==='NotAllowedError'
+      ? 'Negaste a permissão da câmara. Toca no cadeado ao lado do endereço e ativa a Câmara.'
+      : (e.name==='NotFoundError' ? 'Não encontrei nenhuma câmara neste aparelho.' : e.message);
+    erroPopup('Sem acesso à câmara', m, 'cam');
+    st.className='scan-status erro';
+    st.textContent='Sem câmara — escreve a morada e os códigos à mão.';
+    abrirConfirmacao();
+    return false;
+  }
+}
+function pararCam(){
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; camAtiva=false; }
+}
+
+// tira um frame e melhora contraste para OCR de ecrã
+function capturarFrame(){
+  const v=document.getElementById('cam');
+  const c=document.createElement('canvas');
+  c.width=v.videoWidth; c.height=v.videoHeight;
+  const ctx=c.getContext('2d');
+  ctx.drawImage(v,0,0);
+  // recorta a zona da moldura (inset 12% vertical / 6% horizontal)
+  const x=c.width*0.06, y=c.height*0.12, w=c.width*0.88, h=c.height*0.76;
+  const rec=document.createElement('canvas');
+  rec.width=w; rec.height=h;
+  rec.getContext('2d').drawImage(c,x,y,w,h,0,0,w,h);
+  // contraste + escala de cinza (ajuda muito em foto de ecrã)
+  const rc=rec.getContext('2d');
+  const img=rc.getImageData(0,0,w,h), d=img.data;
+  for(let i=0;i<d.length;i+=4){
+    let g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+    g = g<110 ? 0 : (g>150 ? 255 : (g-110)*255/40);
+    d[i]=d[i+1]=d[i+2]=g;
+  }
+  rc.putImageData(img,0,0);
+  return rec;
+}
+
+async function lerMorada(){
+  if(!camAtiva){ abrirConfirmacao(); return; }
+  const st=document.getElementById('capStatus');
+  const btn=document.getElementById('btnOCR');
+  btn.disabled=true; btn.textContent='A ler…';
+  st.className='scan-status'; st.textContent='A processar o texto…';
+  try{
+    if(!ocrPronto){ st.textContent='A preparar o motor de leitura…'; await aquecerOCR(); }
+    const canvas=frameRapido();
+    if(!canvas) throw new Error('Câmara ainda a arrancar — tenta outra vez.');
+    const { data } = await ocrWorker.recognize(canvas);
+    const bruto=(data.text||'').trim();
+    const limpo=limparMorada(bruto);
+    abrirConfirmacao();
+    setMorada(limpo);
+    mostrarCandidatos(bruto);
+    document.getElementById('valResult').innerHTML='';
+    st.className = limpo ? 'scan-status' : 'scan-status erro';
+    st.textContent = limpo ? 'Morada lida — confere e corrige se preciso.' : 'Não consegui ler. Aproxima e tenta outra vez.';
+    if(navigator.vibrate) navigator.vibrate(50);
+  }catch(e){
+    st.className='scan-status erro'; st.textContent='Falhou a leitura: '+e.message;
+  }finally{
+    btn.disabled=false; btn.textContent='Ler morada';
+  }
+}
+
+
+
+
+
+// ================= SESSÃO DE CAPTURA =================
+// Cada pacote capturado recebe um NÚMERO DE PACOTE (o que escreves nele).
+// A ordem de PARAGEM vem depois, da otimização. A folha de rota mostra os dois.
+let sessaoAtiva=true;
+
+function novaLista(){
+  if(pacotes.length && !confirm(`Isto apaga os ${pacotes.length} pacotes atuais e começa uma lista nova. Continuar?`)) return;
+  pacotes=[]; referencia={}; capPares=0; capCodigos=[]; achadoMor=null;
+  const ta=document.getElementById('refInput'); if(ta) ta.value='';
+  rotaParagens=[];
+  try{ localStorage.removeItem('trabalhoDia'); }catch(e){}
+  limparCap(); renderLista(); renderScan(); atualizarBadge(); renderCapResumo();
+  const st=document.getElementById('refStatus');
+  if(st){ st.style.display='block'; st.className='scan-status'; st.textContent='✓ Lista nova. Vai a Capturar.'; }
+}
+
+function renderSess(){ /* contador na badge do topo */ }
+
+
+
+
+// a que pacote já capturado pertence este código?
+function pacoteComCodigo(code){
+  return pacotes.find(p => (p.codes||[]).includes(code)) || null;
+}
+// os outros pacotes da mesma morada
+function irmaosDe(p){
+  if(!p || !p.morada) return [];
+  const k=chaveMorada(p.morada);
+  return pacotes.filter(x=>x!==p && x.morada && chaveMorada(x.morada)===k)
+                .map(x=>x.nPacote).sort((a,b)=>a-b);
+}
+
+
+
+// depois do OK, o pacote ainda está à frente da câmara — ignora os códigos dele por uns segundos
+let __pausaCod={};
+function emPausa(code){
+  const t=__pausaCod[code];
+  return t && (Date.now()-t < 4000);
+}
+
+// ================= PRÉ-ATRIBUIÇÃO =================
+// À noite: código (dígitos do ecrã do PDA) + morada → pré-lista, GUARDADA no telemóvel.
+// No galpão: bipar o pacote confirma na hora — número atribuído, sem OCR.
+let preAtribuidos=[];
+try{ preAtribuidos=JSON.parse(localStorage.getItem('preAtrib')||'[]'); }catch(e){}
+
+function salvarPreLista(){
+  try{ localStorage.setItem('preAtrib', JSON.stringify(preAtribuidos)); }catch(e){}
+}
+let __preModo=false;
+function alternarPre(){
+  const p=document.getElementById('prePainel');
+  const aberto=p.style.display!=='none';
+  if(aberto){ sairPre(); return; }
+  p.style.display='block';
+  __preModo=true;
+  renderPre(); aquecerOCR();
+  // sobe logo para a câmara e começa a ler — o ciclo arranca sozinho
+  setTimeout(()=>{ if(__preModo) lerPreEcra(); }, 300);
+}
+function sairPre(){
+  __preModo=false;
+  clearTimeout(__preTimer);
+  document.getElementById('prePainel').style.display='none';
+  mostrarCam(false);
+  estado('Carrega em ▶ Iniciar captura para começar.');
+}
+function renderPre(){
+  const n=preAtribuidos.length;
+  const b=document.getElementById('btnPre');
+  if(b) b.textContent = n ? `🌙 Pré-atribuição (${n} pendentes)` : '🌙 Pré-atribuição';
+  const res=document.getElementById('preResumo');
+  if(res) res.innerHTML = n ? `<span class="chip">${n} pré-atribuídos à espera de bip</span>` : '';
+  const box=document.getElementById('preItens');
+  if(box) box.innerHTML = preAtribuidos.map((x,i)=>`
+    <div class="pre-item">
+      <div class="pi"><div class="pc">${x.cod}</div><div class="pm">${x.morada}</div></div>
+      <button class="rm" onclick="preAtribuidos.splice(${i},1);salvarPreLista();renderPre()">×</button>
+    </div>`).join('');
+  const bl=document.getElementById('btnPreLista');
+  if(bl){
+    bl.style.display = n ? 'block' : 'none';
+    bl.textContent = `⬆ Passar ${n} pré-atribuído(s) para a Lista`;
+  }
+}
+function juntarPre(){
+  const cod=document.getElementById('preCod').value.trim().toUpperCase().replace(/\s+/g,'');
+  const mor=document.getElementById('preMor').value.trim();
+  if(!cod || cod.length<4){ estado('Escreve o código (mínimo 4 dígitos).',true); return; }
+  if(!mor || mor.length<6){ estado('Escreve a morada.',true); return; }
+  if(preAtribuidos.some(x=>x.cod===cod)){ estado('Esse código já está na pré-lista.',true); return; }
+  if(pacoteComCodigo(cod)){ estado('Esse código já é um pacote capturado.',true); return; }
+  preAtribuidos.push({cod, morada:mor});
+  salvarPreLista(); renderPre();
+  document.getElementById('preCod').value='';
+  document.getElementById('preMor').value='';
+  // volta à câmara (acordando-a, se o Android a pausou) e lê o próximo sozinho
+  acordarCamPre();
+  estado(`✓ Pré-atribuído (${preAtribuidos.length}). Enquadra o próximo ecrã — leitura automática…`);
+  clearTimeout(__preTimer);
+  __preTimer=setTimeout(()=>{
+    const aberto=document.getElementById('prePainel').style.display!=='none';
+    if(aberto && camAtiva) lerPreEcra();
+  }, 1400);
+}
+
+// OCR do ecrã do PDA: extrai o código (dígitos) e a morada, para conferires
+
+// o Android pausa o vídeo quando sai do ecrã e às vezes mata a stream —
+// isto acorda-o (ou religa a câmara) e sobe o ecrã até ela, de forma determinística
+async function acordarCamPre(){
+  const v=document.getElementById('cam');
+  const tracks = v && v.srcObject ? v.srcObject.getVideoTracks() : [];
+  if(!tracks.length || tracks.every(t=>t.readyState==='ended')){
+    camAtiva=false;                      // a stream morreu: religa do zero
+    const ok=await iniciarCam();
+    if(!ok) return false;
+  }else{
+    try{ await v.play(); }catch(e){}     // só estava pausado: retoma
+  }
+  mostrarCam(true);
+  // sobe ao topo do painel (a câmara está lá) — não depende de smooth-scroll frágil
+  const m=document.querySelector('main');
+  setTimeout(()=>{ if(m) m.scrollTo({top:0, behavior:'smooth'}); }, 120);
+  return true;
+}
+
+let __preTimer=null;
+
+async function lerPreEcra(){
+  clearTimeout(__preTimer);
+  const vivo=await acordarCamPre();
+  if(!vivo) return;
+  const btn=document.getElementById('btnPreOCR');
+  btn.disabled=true; btn.textContent='Enquadra o ecrã…';
+  estado('Enquadra o ecrã do PDA — a ler já…');
+  await new Promise(r=>setTimeout(r,1100));
+  btn.textContent='A ler…';
+  try{
+    const cru=frameCru();
+    if(!cru) throw new Error('câmara ainda a arrancar');
+
+    // 1º: há código de barras ou QR no ecrã? Esse É o código do pacote — prioridade total.
+    // Ecrãs têm brilho e moiré: uma tentativa só falha muitas vezes.
+    // Insistimos ~1,2s em vários frames e em dois tamanhos antes de desistir.
+    let codLido='', viaCod='';
+    if(!detCodigo) detCodigo=await criarDetector();
+    if(detCodigo){
+      for(let tent=0; tent<8 && !codLido; tent++){
+        const fr = tent===0 ? cru : frameCru();
+        if(!fr) break;
+        const alvos=[fr];
+        try{ alvos.push(reduzir(fr, 800).canvas); }catch(e){}
+        for(const alvo of alvos){
+          try{
+            const r=await detCodigo.detect(alvo);
+            if(r && r.length){
+              const vals=r.map(x=>(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,''))
+                          .filter(v=>v.length>=6).sort((a,b)=>b.length-a.length);
+              if(vals.length){ codLido=vals[0]; viaCod='barras/QR'; break; }
+            }
+          }catch(e){}
+        }
+        if(!codLido) await new Promise(r=>setTimeout(r,150));
+      }
+      btn.textContent='A ler…';
+    }
+
+    // OCR para a morada (e para os dígitos, só se não houver barras/QR)
+    if(!ocrPronto) await aquecerOCR();
+    const {canvas}=reduzir(cru, 900);
+    await ocrWorker.setParameters({tessedit_pageseg_mode:'11'});
+    const { data } = await ocrWorker.recognize(contrastar(canvas));
+    const norm=(data.text||'').replace(/(\d{4})\s*[-–—.]\s*(\d{3})/g,'$1-$2');
+
+    // 2º: sem barras/QR no ecrã → o código está escrito em dígitos: extrai por OCR,
+    //     mas SEM apanhar telefones nem NIF por engano
+    let avisoCod='';
+    if(!codLido){
+      let semCP=norm.replace(/\d{4}-\d{3}/g,' ');
+      // apaga números precedidos de palavras de contacto (tel., tlm., contacto…)
+      semCP=semCP.replace(/\b(tel[efone]*\.?|tlm\.?|tm\.?|telef\.?|telf\.?|contac?to|phone|nif|fax)[ \t]*[:.\-]?[ \t]*[+\d][\d \t]{6,}\d/gi,' ');
+      const runs=(semCP.match(/\d[\d \t]{6,}\d/g)||[]).map(x=>x.replace(/\s/g,''));
+      // códigos de pacote têm ≥10 dígitos; 9 dígitos a começar por 9 ou 2 é telefone em Portugal
+      const bons=runs.filter(x=>x.length>=10).sort((a,b)=>b.length-a.length);
+      const restantes=runs.filter(x=>x.length===8 || (x.length===9 && !/^[92]/.test(x)))
+                          .sort((a,b)=>b.length-a.length);
+      if(bons.length){ codLido=bons[0]; viaCod='dígitos (OCR)'; }
+      else if(restantes.length){
+        codLido=restantes[0]; viaCod='dígitos (OCR)';
+        avisoCod=' ⚠ Sequência curta — confere se é mesmo o código.';
+      }
+    }
+    // repetido? avisa em amarelo, como na lista — e não preenche nada
+    if(codLido){
+      const pre=encontrarPre(codLido);
+      if(pre){
+        avisoJaExiste('🌙 Este código já está pré-atribuído','PRÉ', pre.morada, pre.cod);
+        return;
+      }
+      const dono=pacoteComCodigo(codLido);
+      if(dono){
+        avisoJaExiste('📦 Este código já está na Lista', dono.nPacote, dono.morada, (dono.codes||[]).join(' · '));
+        return;
+      }
+      document.getElementById('preCod').value=codLido;
+    }
+
+    const m=limparMorada(norm);
+    if(m) document.getElementById('preMor').value=m;
+
+    estado((codLido?`✓ Código lido por ${viaCod}`:'⚠ Não vi o código (barras nem dígitos) — escreve-o') +
+           (m?' · morada lida — confere e junta.':' · morada por ler.') + avisoCod, !codLido&&!m);
+
+    // desce para os campos, para conferires e juntares
+    const pp=document.getElementById('prePainel');
+    if(pp) setTimeout(()=>pp.scrollIntoView({behavior:'smooth', block:'start'}), 250);
+  }catch(e){
+    estado('Falhou a leitura: '+e.message, true);
+  }finally{
+    btn.disabled=false; btn.textContent='📷 Ler do ecrã do PDA';
+  }
+}
+
+
+// passa toda a pré-lista para a lista definitiva — para otimizar sem bipar pacote a pacote
+function preParaLista(){
+  if(!preAtribuidos.length) return;
+  const n=preAtribuidos.length;
+  if(!confirm(`Passar ${n} pré-atribuído(s) para a Lista? A pré-lista fica vazia (os pacotes deixam de esperar confirmação por bip).`)) return;
+  clearTimeout(__preTimer);
+  let passados=0;
+  preAtribuidos.forEach(x=>{
+    if(pacoteComCodigo(x.cod)) return;   // já existe na lista
+    const nP=pacotes.length+1;
+    pacotes.push({nPacote:nP, codes:[x.cod], code:x.cod, morada:x.morada, lat:null, lon:null, ordem:null});
+    referencia[x.cod]=x.morada;
+    const ta=document.getElementById('refInput');
+    if(ta) ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+x.cod+'; '+x.morada;
+    passados++;
+  });
+  preAtribuidos=[];
+  salvarPreLista(); renderPre();
+  pacotes.forEach(p=>{ p.ordem=null; });
+  renderLista(); renderScan(); atualizarBadge(); renderCapResumo();
+  sairPre();
+  ir('lista');
+  const st=document.getElementById('refStatus');
+  if(st){ st.style.display='block'; st.className='scan-status';
+          st.textContent=`✓ ${passados} pacote(s) passados da pré-lista. Confere e finaliza para otimizar.`; }
+}
+
+
+// ecrã amarelo reutilizado: avisa que o código lido já existe (na pré-lista ou na Lista)
+function avisoJaExiste(titulo, grande, morada, cods){
+  clearTimeout(__preTimer);
+  document.getElementById('jaT').textContent=titulo;
+  document.getElementById('jaN').textContent=grande;
+  document.getElementById('jaM').textContent=morada||'—';
+  document.getElementById('jaC').textContent=cods||'';
+  document.getElementById('jaIrm').style.display='none';
+  document.getElementById('jaAtrib').style.display='flex';
+  if(navigator.vibrate) navigator.vibrate(120);
+}
+
+// no galpão: este código bate com algum pré-atribuído?
+function encontrarPre(v){
+  if(!v || v.length<6) return null;
+  return preAtribuidos.find(x=>
+    x.cod===v ||
+    (x.cod.length>=6 && (v.includes(x.cod) || x.cod.includes(v)))
+  ) || null;
+}
+
+// confirma: cria o pacote, dá número, mostra o ecrã de marcação
+function confirmarPre(pre, valLido){
+  const idx=preAtribuidos.indexOf(pre);
+  if(idx>=0){ preAtribuidos.splice(idx,1); salvarPreLista(); renderPre(); }
+
+  const cods=[valLido];
+  if(pre.cod!==valLido) cods.push(pre.cod);
+  const irmaos=pacotes.filter(p=>chaveMorada(p.morada)===chaveMorada(pre.morada));
+
+  const nPacote=pacotes.length+1;
+  pacotes.push({nPacote, codes:cods, code:cods[0], morada:pre.morada, lat:null, lon:null, ordem:null});
+  cods.forEach(c=>{ referencia[c]=pre.morada; });
+  const ta=document.getElementById('refInput');
+  if(ta) ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+cods.join(' | ')+'; '+pre.morada;
+
+  pararAuto('');
+  mostrarCam(false);
+  document.getElementById('confirmar').style.display='none';
+  document.getElementById('mfN').textContent=nPacote;
+  document.getElementById('mfM').textContent=pre.morada;
+  document.getElementById('mfC').textContent=cods.join(' · ');
+  document.getElementById('mfPre').style.display='block';
+  const av=document.getElementById('mfAviso');
+  if(irmaos.length){
+    const outros=irmaos.map(p=>p.nPacote).sort((a,b)=>a-b);
+    av.innerHTML=`<b>⚠ Mesma morada que o(s) pacote(s) ${outros.join(', ')}</b><br>Entrega-os numa única paragem.`;
+    av.style.display='block';
+  }else av.style.display='none';
+  document.getElementById('marcarFull').style.display='flex';
+  if(navigator.vibrate) navigator.vibrate([70,60,70]);
+  capCodigos=[]; achadoMor=null;
+  renderSess(); renderScan(); renderLista(); atualizarBadge(); renderCapResumo();
+}
+
+// ================= PACOTE JÁ ATRIBUÍDO =================
+function mostrarJaAtribuido(p){
+  pararAuto('');
+  mostrarCam(false);
+  document.getElementById('jaT').textContent='📦 Este pacote já foi atribuído';
+  document.getElementById('jaN').textContent = p.nPacote;
+  document.getElementById('jaM').textContent = p.morada || 'sem morada';
+  document.getElementById('jaC').textContent = (p.codes||[]).join(' · ');
+  const irm=irmaosDe(p);
+  const box=document.getElementById('jaIrm');
+  if(irm.length){
+    box.innerHTML=`<b>⚠ Mesma morada que o(s) pacote(s) ${irm.join(', ')}</b><br>Entrega-os todos numa única paragem.`;
+    box.style.display='block';
+  }else{
+    box.style.display='none';
+  }
+  document.getElementById('jaAtrib').style.display='flex';
+  if(navigator.vibrate) navigator.vibrate(120);
+}
+function okJaAtribuido(){
+  mostrarCam(true);
+  // em pré-atribuição, o OK retoma o ciclo de leitura do ecrã do PDA
+  if(__preModo && document.getElementById('prePainel').style.display!=='none'){
+    document.getElementById('jaAtrib').style.display='none';
+    acordarCamPre();
+    estado('Enquadra o próximo ecrã — leitura automática…');
+    clearTimeout(__preTimer);
+    __preTimer=setTimeout(()=>{ if(__preModo && camAtiva) lerPreEcra(); }, 1400);
+    return;
+  }
+  // pausa os códigos deste pacote: se ele ainda estiver à frente da câmara, não volta a disparar
+  const nums=document.getElementById('jaC').textContent.split('·').map(x=>x.trim()).filter(Boolean);
+  nums.forEach(c=>{ __pausaCod[c]=Date.now(); });
+  document.getElementById('jaAtrib').style.display='none';
+  limparCap();
+  estado('Aponta ao pacote seguinte.');
+  if(sessaoAtiva) arrancarAuto();
+}
+
+// ================= CÓDIGOS MÚLTIPLOS (QR + barras) =================
+// referencia passa a ser: { codigo: morada } com VÁRIOS códigos a apontar à mesma morada
+let capCodigos=[];   // [{val, tipo}] códigos apanhados do pacote atual
+
+function juntarCodigo(val, tipo){
+  val=(val||'').trim().toUpperCase().replace(/\s+/g,'');
+  if(!val) return false;
+  if(capCodigos.some(c=>c.val===val)) return false;   // já o tenho
+  capCodigos.push({val, tipo:tipo||'?'});
+  renderCods();
+  return true;
+}
+function juntarCodManual(){
+  const i=document.getElementById('capCodigo');
+  if(juntarCodigo(i.value,'manual')){ i.value=''; }
+}
+function tirarCodigo(i){ capCodigos.splice(i,1); renderCods(); }
+function renderCods(){
+  const box=document.getElementById('codList');
+  if(!box) return;
+  if(!capCodigos.length){ box.innerHTML='<span class="codvazio">Ainda sem códigos — aponta ao QR ou às barras.</span>'; return; }
+  const nome={qr_code:'QR', code_128:'BARRAS', code_39:'BARRAS', ean_13:'EAN', ean_8:'EAN', itf:'ITF', codabar:'CODABAR', manual:'À MÃO'};
+  box.innerHTML = capCodigos.map((c,i)=>
+    `<span class="codchip"><span class="t">${nome[c.tipo]||'CÓD'}</span>${c.val}
+     <button class="x" onclick="tirarCodigo(${i})">×</button></span>`).join('');
+  renderVista();
+}
+
+
+
+
+// ================= LEITOR DE CÓDIGOS (nativo → ZXing) =================
+// O BarcodeDetector nativo só existe no Chrome Android. Nos outros usamos o ZXing (JS puro).
+const FORMATOS=['code_128','code_39','ean_13','ean_8','itf','codabar','qr_code','data_matrix','pdf417'];
+let __motorCod=null;   // 'nativo' | 'zxing' | 'nenhum'
+
+async function criarDetector(){
+  // 1) nativo (mais rápido)
+  if('BarcodeDetector' in window){
+    try{
+      const suportados=await BarcodeDetector.getSupportedFormats();
+      const usar=FORMATOS.filter(f=>suportados.includes(f));
+      if(usar.length){
+        __motorCod='nativo';
+        const d=new BarcodeDetector({formats:usar});
+        return { detect: c=>d.detect(c) };
+      }
+    }catch(e){ /* passa ao ZXing */ }
+  }
+  // 2) ZXing — funciona em qualquer navegador
+  if(typeof ZXing!=='undefined'){
+    __motorCod='zxing';
+    const hints=new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[
+      ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39,
+      ZXing.BarcodeFormat.EAN_13,  ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.ITF,     ZXing.BarcodeFormat.CODABAR,
+      ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.DATA_MATRIX,
+      ZXing.BarcodeFormat.PDF_417
+    ]);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    const leitor=new ZXing.MultiFormatReader();
+    leitor.setHints(hints);
+    return {
+      detect: (c)=>{
+        try{
+          const ctx=c.getContext('2d');
+          const img=ctx.getImageData(0,0,c.width,c.height);
+          const fonte=new ZXing.RGBLuminanceSource(
+            zxLuminancia(img.data, c.width, c.height), c.width, c.height);
+          const bmp=new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(fonte));
+          const r=leitor.decode(bmp);
+          leitor.reset();
+          return Promise.resolve([{
+            rawValue: r.getText(),
+            format: (ZXing.BarcodeFormat[r.getBarcodeFormat()]||'CODE').toLowerCase()
+          }]);
+        }catch(e){
+          try{ leitor.reset(); }catch(_){}
+          return Promise.resolve([]);   // não encontrou neste frame — normal
+        }
+      }
+    };
+  }
+  __motorCod='nenhum';
+  return null;
+}
+
+// converte RGBA para o array de luminância que o ZXing espera
+function zxLuminancia(d,w,h){
+  const out=new Uint8ClampedArray(w*h);
+  for(let i=0,j=0;i<d.length;i+=4,j++){
+    out[j]=(d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114) | 0;
+  }
+  return out;
+}
+
+
+// desenha o frame no canvas — reduzido quando usamos o ZXing (mais pesado)
+function desenharFrame(v,c,ctx){
+  const max = (__motorCod==='zxing') ? 800 : 1280;
+  const esc = Math.min(1, max / v.videoWidth);
+  c.width  = Math.round(v.videoWidth  * esc);
+  c.height = Math.round(v.videoHeight * esc);
+  ctx.drawImage(v, 0, 0, c.width, c.height);
+}
+
+// ================= POPUP DE ERRO =================
+let __erroMostrado={};
+function erroPopup(titulo, msg, umaVez){
+  if(umaVez){ if(__erroMostrado[umaVez]) return; __erroMostrado[umaVez]=true; }
+  document.getElementById('modalT').textContent=titulo;
+  document.getElementById('modalM').textContent=msg;
+  document.getElementById('modal').style.display='flex';
+}
+function fecharModal(){ document.getElementById('modal').style.display='none'; }
+
+
+// a câmara só aparece quando é precisa — e recolhe-se quando há algo para confirmar
+function mostrarCam(v){
+  const w=document.getElementById('miraWrap');
+  if(w) w.style.display = v ? 'block' : 'none';
+}
+// ================= MOTOR OCR =================
+const OCR_LARGURA = 900;
+let ocrPronto=false, ocrACarregar=false;
+
+async function aquecerOCR(){
+  if(ocrWorker||ocrACarregar) return;
+  if(typeof Tesseract==='undefined'){
+    erroPopup('Motor de leitura não carregou','Precisa de internet na primeira utilização. Verifica a ligação e recarrega a página.','ocrlib');
+    return;
+  }
+  ocrACarregar=true;
+  estado('A preparar a leitura…');
+  try{
+    try{ ocrWorker = await Tesseract.createWorker('por'); }
+    catch(e1){ ocrWorker = await Tesseract.createWorker('eng'); }
+    await ocrWorker.setParameters({
+      tessedit_pageseg_mode:'11',           // texto disperso: apanha em qualquer posição
+      tessedit_ocr_engine_mode:'1',
+      // SÓ o que interessa: letras de nomes de rua, dígitos, hífen do código postal, º
+      tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÁÀÂÃÇÉÊÍÓÔÕÚáàâãçéêíóôõú0123456789-.,º '
+    });
+    ocrPronto=true; ocrACarregar=false;
+    estado('Pronto — aponta à etiqueta.');
+  }catch(e){
+    ocrACarregar=false; ocrPronto=false;
+    erroPopup('A leitura de texto falhou', e.message+'\n\nPodes escrever a morada à mão em "Corrigir".','ocrfail');
+  }
+}
+
+function frameRapido(){
+  const v=document.getElementById('cam');
+  if(!v||!v.videoWidth) return null;
+  const esc=Math.min(1, OCR_LARGURA/v.videoWidth);
+  const w=Math.round(v.videoWidth*esc*0.88), h=Math.round(v.videoHeight*esc*0.76);
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(v, v.videoWidth*0.06, v.videoHeight*0.12, v.videoWidth*0.88, v.videoHeight*0.76, 0,0,w,h);
+  const img=ctx.getImageData(0,0,w,h), d=img.data;
+  for(let i=0;i<d.length;i+=4){
+    let g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+    g = g<110 ? 0 : (g>150 ? 255 : (g-110)*6.375);
+    d[i]=d[i+1]=d[i+2]=g;
+  }
+  ctx.putImageData(img,0,0);
+  return c;
+}
+
+
+// ================= LEITURA ANCORADA NO "DESTINATÁRIO" =================
+// Passagem 1: encontra a palavra "Destinatário" e onde ela está.
+// Passagem 2: recorta SÓ a zona abaixo dela e lê com muito mais detalhe.
+
+const PAL_DEST = /^(destinat|dest|entregar|receb|recet|recep|consign|para)/i;
+const PAL_REM  = /^(remet|rem|expedid|devolv|origem|sender)/i;
+
+// frame cru (sem recorte nem filtro), à resolução máxima
+function frameCru(){
+  const v=document.getElementById('cam');
+  if(!v||!v.videoWidth) return null;
+  const c=document.createElement('canvas');
+  c.width=v.videoWidth; c.height=v.videoHeight;
+  c.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0);
+  return c;
+}
+
+// reduz um canvas para largura máxima
+function reduzir(src, larguraMax){
+  const esc=Math.min(1, larguraMax/src.width);
+  const c=document.createElement('canvas');
+  c.width=Math.round(src.width*esc); c.height=Math.round(src.height*esc);
+  c.getContext('2d',{willReadFrequently:true}).drawImage(src,0,0,c.width,c.height);
+  return {canvas:c, escala:esc};
+}
+
+// contraste forte (para o recorte final)
+function contrastar(c, ampliar){
+  const amp = ampliar||1;
+  const out=document.createElement('canvas');
+  out.width=Math.round(c.width*amp); out.height=Math.round(c.height*amp);
+  const ctx=out.getContext('2d',{willReadFrequently:true});
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  ctx.drawImage(c,0,0,out.width,out.height);
+  const img=ctx.getImageData(0,0,out.width,out.height), d=img.data;
+  for(let i=0;i<d.length;i+=4){
+    let g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+    g = g<115 ? 0 : (g>155 ? 255 : (g-115)*6.375);
+    d[i]=d[i+1]=d[i+2]=g;
+  }
+  ctx.putImageData(img,0,0);
+  return out;
+}
+
+// tira as palavras (com posição) do resultado do Tesseract
+function palavrasDe(data){
+  if(Array.isArray(data.words) && data.words.length) return data.words;
+  const out=[];
+  (data.blocks||[]).forEach(b=>(b.paragraphs||[]).forEach(p=>(p.lines||[]).forEach(l=>
+    (l.words||[]).forEach(w=>out.push(w)))));
+  return out;
+}
+
+// PASSAGEM 1 → onde está o "Destinatário"?
+async function localizarDestinatario(cru){
+  const {canvas, escala} = reduzir(cru, 900);
+  await ocrWorker.setParameters({tessedit_pageseg_mode:'11'});   // texto disperso
+  const { data } = await ocrWorker.recognize(contrastar(canvas), {}, {blocks:true});
+  const palavras = palavrasDe(data).filter(w=>w.text && w.text.trim().length>2);
+
+  let dest=null, rem=null;
+  palavras.forEach(w=>{
+    const t=w.text.trim().replace(/[^A-Za-zÀ-ÿ]/g,'');
+    if(!dest && PAL_DEST.test(t)) dest=w;
+    if(!rem  && PAL_REM.test(t))  rem=w;
+  });
+  if(!dest) return null;
+
+  // converte as coordenadas de volta para a resolução original
+  const k=1/escala;
+  const y0 = dest.bbox.y1 * k;                       // logo abaixo da palavra
+  // o bloco acaba onde começa o remetente (se ele estiver por baixo), senão vai até ao fim
+  let y1 = cru.height;
+  if(rem && rem.bbox.y0*k > y0 + 10) y1 = rem.bbox.y0 * k;
+  const alturaMin = cru.height*0.12;
+  if(y1 - y0 < alturaMin) y1 = Math.min(cru.height, y0 + cru.height*0.35);
+
+  return {
+    x: Math.max(0, dest.bbox.x0*k - cru.width*0.03),   // um pouco à esquerda da palavra
+    y: y0 + 2,
+    w: cru.width - Math.max(0, dest.bbox.x0*k - cru.width*0.03),
+    h: y1 - y0 - 2
+  };
+}
+
+// PASSAGEM 2 → lê SÓ o recorte do destinatário, ampliado
+async function lerRecorte(cru, r){
+  const c=document.createElement('canvas');
+  c.width=Math.round(r.w); c.height=Math.round(r.h);
+  c.getContext('2d',{willReadFrequently:true})
+    .drawImage(cru, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
+  // amplia recortes pequenos: o Tesseract lê muito melhor com letras maiores
+  const amp = c.width < 700 ? 2 : (c.width < 1100 ? 1.5 : 1);
+  await ocrWorker.setParameters({tessedit_pageseg_mode:'6'});    // bloco único de texto
+  const { data } = await ocrWorker.recognize(contrastar(c, amp));
+  return (data.text||'').trim();
+}
+
+// leitura completa: ancorada se encontrar o rótulo, senão heurística antiga
+async function lerDestinatario(){
+  const cru=frameCru();
+  if(!cru) return null;
+  try{
+    const zona = await localizarDestinatario(cru);
+    if(zona){
+      const txt = await lerRecorte(cru, zona);
+      const norm = txt.replace(/(\d{4})\s*[-–—.]\s*(\d{3})/g,'$1-$2');
+      const m = extrairMorada(norm.split('\n').map(l=>l.trim()).filter(l=>l.length>1));
+      if(m && m.length>6) return {morada:m, bruto:norm, ancorado:true};
+    }
+    // sem rótulo visível: volta ao método antigo (bloco de baixo)
+    const {canvas} = reduzir(cru, 900);
+    await ocrWorker.setParameters({tessedit_pageseg_mode:'11'});
+    const { data } = await ocrWorker.recognize(contrastar(canvas));
+    const norm=(data.text||'').replace(/(\d{4})\s*[-–—.]\s*(\d{3})/g,'$1-$2');
+    const m=limparMorada(norm);
+    if(m && m.length>6) return {morada:m, bruto:norm, ancorado:false};
+    return {morada:null, bruto:norm, ancorado:false};
+  }catch(e){
+    throw e;
+  }
+}
+
+// ================= MODO AUTOMÁTICO: DOIS CICLOS INDEPENDENTES =================
+let autoOn=false, detCodigo=null, achadoMor=null;
+
+function alternarAuto(){ autoOn ? pararAuto('Parado.') : arrancarAuto(); }
+
+async function arrancarAuto(){
+  if(!window.isSecureContext){
+    erroPopup('A câmara está bloqueada','Esta página tem de ser aberta em https://. Abriste-a como ficheiro local, e os navegadores não dão câmara assim.','seguro');
+    return;
+  }
+  if(!camAtiva){
+    const ok=await iniciarCam();
+    if(!ok) return;
+  }
+  mostrarCam(true);
+
+  autoOn=true; achadoMor=null;
+  const b=document.getElementById('btnAuto');
+  b.textContent='■ Parar a captura'; b.classList.add('parar');
+  document.getElementById('pistas').style.display='flex';
+  pista('pCod',false); pista('pCP',false); pista('pRua',false); pista('pDest',false);
+  estado('A ler — aponta à etiqueta.');
+
+  if(!detCodigo){
+    detCodigo=await criarDetector();
+    if(!detCodigo){
+      erroPopup('Não consigo ler códigos','As bibliotecas de leitura não carregaram — precisa de internet na primeira utilização. Podes escrever os códigos à mão em "Corrigir".','semdet');
+    }
+  }
+
+  // OS DOIS CICLOS ARRANCAM EM PARALELO — não esperam um pelo outro
+  cicloCodigos();
+  aquecerOCR().then(()=>{ if(autoOn) cicloOCR(); });
+}
+
+function pararAuto(msg){
+  autoOn=false;
+  if(msg) mostrarCam(false);   // paragem pedida pelo utilizador → recolhe
+  const b=document.getElementById('btnAuto');
+  b.textContent='▶ Iniciar captura'; b.classList.remove('parar');
+  if(msg) estado(msg);
+}
+function pista(id,ok){ const e=document.getElementById(id); if(e) e.classList.toggle('ok',!!ok); }
+function estado(t,erro){ const s=document.getElementById('capStatus'); if(!s) return; s.className='scan-status'+(erro?' erro':''); s.textContent=t; }
+
+// --- CICLO 1: códigos (QR + barras). Rápido, independente do OCR. ---
+async function cicloCodigos(){
+  if(!detCodigo) return;
+  const v=document.getElementById('cam');
+  const c=document.createElement('canvas');
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  while(autoOn){
+    try{
+      if(v.videoWidth){
+        desenharFrame(v,c,ctx);
+        const r=await detCodigo.detect(c);
+
+        // 1º: código de um pacote JÁ CAPTURADO → popup amarelo IMEDIATO.
+        // Nem espera pela morada nem pelo OCR — poupa o tempo todo.
+        for(const x of r){
+          const val=(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,'');
+          const dono=pacoteComCodigo(val);
+          if(dono && !capCodigos.length && !emPausa(val)){
+            mostrarJaAtribuido(dono);   // pára os dois ciclos lá dentro
+            return;
+          }
+        }
+
+        // 2º: código pré-atribuído → CONFIRMA na hora, sem OCR
+        for(const x of r){
+          const val=(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,'');
+          if(pacoteComCodigo(val)) continue;
+          const pre=encontrarPre(val);
+          if(pre && !capCodigos.length){
+            confirmarPre(pre, val);
+            return;
+          }
+        }
+
+        // 3º: códigos novos do pacote atual
+        let novo=false;
+        r.forEach(x=>{
+          const val=(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,'');
+          if(pacoteComCodigo(val)) return;   // conhecido: tratado acima ou em pausa
+          if(juntarCodigo(val, x.format)) novo=true;
+        });
+        if(novo){
+          pista('pCod',true);
+          if(capCodigos.length>=2){
+            if(navigator.vibrate) navigator.vibrate([40,40,40]);
+            estado(`✓ ${capCodigos.length} códigos (QR + barras) — agora a morada…`);
+          }else{
+            if(navigator.vibrate) navigator.vibrate(40);
+            estado('✓ 1 código — roda o pacote para o outro, ou espera pela morada…');
+          }
+          verificarCompleto();
+        }
+      }
+    }catch(e){ /* frame falhado: tenta o seguinte */ }
+    await new Promise(r=>setTimeout(r, __motorCod==='zxing' ? 60 : 90));
+  }
+}
+
+// --- CICLO 2: OCR ancorado no "Destinatário" ---
+async function cicloOCR(){
+  let voltas=0;
+  while(autoOn && !achadoMor){
+    if(!ocrPronto){ await new Promise(r=>setTimeout(r,400)); continue; }
+    try{
+      const r = await lerDestinatario();
+      if(!r){ await new Promise(x=>setTimeout(x,300)); continue; }
+
+      const temCP=/\d{4}-\d{3}/.test(r.bruto);
+      const temRua=RE_RUA.test(r.bruto);
+      pista('pCP',temCP); pista('pRua',temRua);
+      pista('pDest', r.ancorado);
+
+      if(r.morada){
+        // com o rótulo encontrado, aceitamos logo.
+        // sem rótulo, exigimos código postal — senão é fácil apanhar o remetente por engano.
+        if(r.ancorado || temCP){
+          achadoMor={morada:r.morada, bruto:r.bruto, ancorado:r.ancorado};
+          if(navigator.vibrate) navigator.vibrate(80);
+          verificarCompleto();
+          return;
+        }
+      }
+      if(++voltas===8){
+        estado(r.ancorado ? 'Encontrei o destinatário mas não a morada — aproxima-te.'
+                          : 'Não encontro a palavra "Destinatário" — aproxima ou endireita a etiqueta.');
+      }
+    }catch(e){
+      erroPopup('Erro ao ler o texto', e.message, 'ocrerr');
+      await new Promise(x=>setTimeout(x,800));
+    }
+  }
+}
+
+// --- quando os dois ciclos já deram o que era preciso ---
+function verificarCompleto(){
+  if(!autoOn || !achadoMor) return;
+  if(!capCodigos.length && detCodigo) return;   // ainda falta o código
+  pararAuto('');
+  mostrarCam(false);
+  abrirConfirmacao();
+  setMorada(achadoMor.morada);
+  renderCods();
+  mostrarCandidatos(achadoMor.bruto);
+  document.getElementById('valResult').innerHTML = achadoMor.ancorado
+    ? '<div class="val ok">🎯 Lido a partir do rótulo <b>Destinatário</b>.</div>'
+    : '<div class="val warn"><b>Não encontrei o rótulo "Destinatário"</b> — esta morada pode ser do remetente. Confere com atenção.</div>';
+  estado(`✓ Lido — ${capCodigos.length} código(s) e a morada. Confere e grava.`);
+  document.getElementById('confirmar').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ===== Separar REMETENTE de DESTINATÁRIO =====
+const RE_DEST = /(destinat[aá]ri|entregar\s*a|entrega\s*em|para\s*:|receptor|recetor|morada\s*de\s*entrega|consignat)/i;
+const RE_REM  = /(remetent|expedidor|devolver\s*a|origem|de\s*:|rem\.|sender)/i;
+const RE_RUA  = /(rua|avenida|travessa|largo|praceta|praça|praca|lugar|caminho|estrada|beco|urbaniza|quinta|bairro|edif|lote|av\.|r\.|trv\.)/i;
+
+// Divide o texto do OCR em blocos e classifica cada um
+function analisarTexto(bruto){
+  const linhas = bruto.split('\n').map(l=>l.trim()).filter(l=>l.length>1)
+    .map(l=>l.replace(/(\d{4})\s*[-–—.]\s*(\d{3})/g,'$1-$2'));
+
+  const blocos=[]; let atual={tipo:'?', linhas:[]};
+  linhas.forEach(l=>{
+    if(RE_DEST.test(l)){ if(atual.linhas.length) blocos.push(atual); atual={tipo:'dest', linhas:[]};
+      const resto=l.replace(RE_DEST,'').replace(/^[\s:.-]+/,'').trim();
+      if(resto.length>3) atual.linhas.push(resto);
+      return;
+    }
+    if(RE_REM.test(l)){ if(atual.linhas.length) blocos.push(atual); atual={tipo:'rem', linhas:[]};
+      const resto=l.replace(RE_REM,'').replace(/^[\s:.-]+/,'').trim();
+      if(resto.length>3) atual.linhas.push(resto);
+      return;
+    }
+    atual.linhas.push(l);
+  });
+  if(atual.linhas.length) blocos.push(atual);
+
+  // extrai uma morada de cada bloco
+  const cands=[];
+  blocos.forEach(b=>{
+    const m=extrairMorada(b.linhas);
+    if(m) cands.push({tipo:b.tipo, morada:m});
+  });
+
+  // Sem etiquetas: se houver 2+ moradas, no CTT o destinatário é tipicamente o bloco de baixo
+  if(cands.length>1 && cands.every(c=>c.tipo==='?')){
+    cands[cands.length-1].tipo='dest';
+    cands.slice(0,-1).forEach(c=>c.tipo='dup');
+  }
+  return cands;
+}
+
+function extrairMorada(linhas){
+  const iCP = linhas.findIndex(l=>/\d{4}-\d{3}/.test(l));
+  let sel='';
+  if(iCP>=0){
+    const antes = linhas.slice(0,iCP).filter(l=>RE_RUA.test(l));
+    const rua = antes.length ? antes[antes.length-1] : '';
+    sel = (rua ? rua+', ' : '') + linhas[iCP];
+  }else{
+    const ruas = linhas.filter(l=>RE_RUA.test(l));
+    sel = ruas.join(', ');
+  }
+  sel = expandir(sel);
+  return sel.length>5 ? sel : null;
+}
+
+// substitui a antiga limparMorada
+function limparMorada(txt){
+  const c=analisarTexto(txt);
+  const d=c.find(x=>x.tipo==='dest');
+  return d ? d.morada : (c[0] ? c[0].morada : '');
+}
+
+function mostrarCandidatos(bruto){
+  const cands=analisarTexto(bruto);
+  const wrap=document.getElementById('candWrap');
+  const box=document.getElementById('cands');
+  if(cands.length<2){ wrap.style.display='none'; box.innerHTML=''; return; }
+  const rot={dest:['dest','Destinatário'], rem:['rem','Remetente'], dup:['dup','Outro bloco'], '?':['dup','Bloco']};
+  box.innerHTML = cands.map((c,i)=>{
+    const [cls,txt]=rot[c.tipo]||rot['?'];
+    const sel = c.tipo==='dest' ? ' sel':'';
+    return `<button class="cand${sel}" data-i="${i}" onclick="escolherCand(${i})">
+      <span class="tag ${cls}">${txt}</span><br>${c.morada}</button>`;
+  }).join('');
+  wrap.style.display='block';
+  window.__cands=cands;
+}
+function escolherCand(i){
+  document.querySelectorAll('.cand').forEach(b=>b.classList.toggle('sel', +b.dataset.i===i));
+  setMorada(window.__cands[i].morada);
+  document.getElementById('valResult').innerHTML='';
+}
+
+// ===== Validar / completar com GeoAPI.pt (dados CTT+INE, grátis) =====
+async function validarMorada(){
+  const campo=document.getElementById('capMorada');
+  const mor=campo.value.trim();
+  const out=document.getElementById('valResult');
+  const btn=document.getElementById('btnVal');
+  if(!mor){ out.innerHTML='<div class="val warn">Escreve ou lê uma morada primeiro.</div>'; return; }
+  const cp=(mor.match(/\d{4}-\d{3}/)||[])[0];
+  if(!cp){
+    out.innerHTML='<div class="val warn"><b>Sem código postal.</b> Sem o <code>NNNN-NNN</code> não consigo confirmar a freguesia. Escreve-o e valida outra vez.</div>';
+    return;
+  }
+  btn.disabled=true; btn.textContent='A consultar…';
+  out.innerHTML='<div class="val ok">A consultar a base dos códigos postais…</div>';
+  try{
+    const r=await fetch(`https://json.geoapi.pt/cp/${cp}`, {headers:{'Accept':'application/json'}});
+    if(!r.ok) throw new Error(r.status===404?'Código postal não existe na base.':'Base indisponível ('+r.status+').');
+    const d=await r.json();
+
+    const freguesia = d.Freguesia || d.freguesia || (d.Localidade||d.localidade) || '';
+    const concelho  = d.Concelho || d.concelho || d.Municipio || d.municipio || '';
+    const localidade= d.Localidade || d.localidade || '';
+    // ruas conhecidas deste CP (o formato varia — tentamos várias hipóteses)
+    let ruas=[];
+    const fontes=[d.pontos, d.partes, d.ruas, d.Ruas, d.Moradas];
+    fontes.forEach(f=>{ if(Array.isArray(f)) f.forEach(x=>{
+      const nome = typeof x==='string' ? x : (x.rua||x.Rua||x.arteria||x.Arteria||x.designacao||'');
+      if(nome && !ruas.includes(nome)) ruas.push(nome);
+    });});
+    if(typeof d.Rua==='string') ruas.push(d.Rua);
+    ruas=ruas.filter(Boolean).slice(0,12);
+
+    const parte1 = mor.slice(0, mor.indexOf(cp)).replace(/[,;\s]+$/,'').trim();
+    const ruaOK = ruas.length===0 || ruas.some(x=>parecido(x, parte1));
+
+    // reconstrói a morada completa: Rua, Freguesia, Concelho, CP
+    const cidade = concelho || localidade || '';
+    const partes = [parte1, freguesia && freguesia!==cidade ? freguesia : '', cidade, cp].filter(Boolean);
+    const completa = partes.join(', ');
+    campo.value = completa;
+
+    let html = `<div class="val ok"><b>✓ ${cp}</b> — ${[freguesia,concelho].filter(Boolean).join(' · ')||'encontrado'}<br>Morada completada em baixo.</div>`;
+    if(!ruaOK){
+      html += `<div class="val warn"><b>A rua não bate certo</b> com as deste código postal. Confere — o OCR pode ter falhado.
+        ${ruas.length?'<div class="ruas">'+ruas.map(x=>`<span class="rua" onclick="usarRua(this)">${x}</span>`).join('')+'</div>':''}</div>`;
+    }else if(!parte1){
+      html += `<div class="val warn"><b>Falta a rua.</b> Toca na correta:
+        <div class="ruas">${ruas.map(x=>`<span class="rua" onclick="usarRua(this)">${x}</span>`).join('')}</div></div>`;
+    }
+    out.innerHTML=html;
+  }catch(e){
+    out.innerHTML=`<div class="val warn"><b>Não validei.</b> ${e.message} A morada fica como está — confere à mão.</div>`;
+  }finally{
+    btn.disabled=false; btn.textContent='Validar no código postal';
+  }
+}
+function usarRua(el){
+  const campo=document.getElementById('capMorada');
+  const cp=(campo.value.match(/\d{4}-\d{3}/)||[])[0]||'';
+  const resto=campo.value.split(',').map(x=>x.trim()).filter(x=>x && !/\d{4}-\d{3}/.test(x) && !RE_RUA.test(x));
+  campo.value=[el.textContent, ...resto, cp].filter(Boolean).join(', ');
+  document.getElementById('valResult').innerHTML='<div class="val ok">Rua substituída. Junta o número de porta se faltar.</div>';
+}
+function parecido(a,b){
+  const n=x=>x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,'').replace(/\b(rua|avenida|travessa|largo|de|da|do|dos|das)\b/g,'').replace(/\s+/g,' ').trim();
+  const A=n(a), B=n(b);
+  if(!A||!B) return false;
+  return A.includes(B)||B.includes(A)||A.split(' ').filter(w=>w.length>3&&B.includes(w)).length>=1;
+}
+
+function expandir(m){
+  return m
+    .replace(/\bR\.\s*/gi,'Rua ').replace(/\bAv\.\s*/gi,'Avenida ')
+    .replace(/\bTrv\.\s*/gi,'Travessa ').replace(/\bTv\.\s*/gi,'Travessa ')
+    .replace(/\bLg\.\s*/gi,'Largo ').replace(/\bEst\.\s*/gi,'Estrada ')
+    .replace(/\bn[ºo°]?\s*\.?\s*(\d)/gi,'nº $1')
+    .replace(/\s{2,}/g,' ').replace(/\s*,\s*/g,', ').replace(/^[,\s]+|[,\s]+$/g,'');
+}
+
+// lê o código de barras com a mesma câmara
+async function lerCodigo(){
+  const st=document.getElementById('capStatus');
+  const btn=document.getElementById('btnCod');
+  abrirConfirmacao();
+  btn.disabled=true; btn.textContent='A ler…';
+  st.className='scan-status'; st.textContent='Aponta ao código de barras do pacote…';
+  try{
+    const det=await criarDetector();
+    if(!det) throw new Error('sem-api');
+    const v=document.getElementById('cam');
+    let n=0, tentativas=0;
+    const c=document.createElement('canvas');
+    const ctx=c.getContext('2d',{willReadFrequently:true});
+    while(tentativas<60){
+      if(!v.videoWidth){ await new Promise(x=>setTimeout(x,150)); tentativas++; continue; }
+      desenharFrame(v,c,ctx);
+      const r=await det.detect(c);
+      r.forEach(x=>{ if(juntarCodigo(x.rawValue, x.format)) n++; });
+      if(n) break;
+      await new Promise(x=>setTimeout(x,150)); tentativas++;
+    }
+    if(n){
+      st.className='scan-status'; st.textContent=`✓ ${capCodigos.length} código(s).`;
+      if(navigator.vibrate) navigator.vibrate(60);
+    }else{
+      st.className='scan-status erro'; st.textContent='Não apanhei nenhum código — escreve à mão.';
+    }
+  }catch(e){
+    st.className='scan-status erro';
+    st.textContent = e.message==='sem-api'
+      ? 'As bibliotecas de leitura não carregaram — escreve o código à mão.'
+      : 'Falhou a leitura do código.';
+  }finally{
+    btn.disabled=false; btn.textContent='Ler código';
+  }
+}
+
+// normaliza a morada para comparar (ignora acentos, maiúsculas, espaços, pontuação)
+function chaveMorada(m){
+  return (m||'').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]/g,'');
+}
+
+async function gravarPar(){
+  const mor=document.getElementById('capMorada').value.trim();
+  if(!mor){ estado('A morada está vazia.',true); return; }
+  juntarCodManual();
+  let cods=capCodigos.map(c=>c.val);
+
+  // O CÓDIGO é o identificador único. Se já existe, é o MESMO pacote.
+  const jaLido = pacotes.find(p => (p.codes||[]).some(c => cods.includes(c)));
+  if(jaLido){
+    document.getElementById('confirmar').style.display='none';
+    mostrarJaAtribuido(jaLido);
+    return;
+  }
+
+  if(!cods.length) cods=['P'+(pacotes.length+1)];
+
+  // Mesma morada + código diferente = OUTRO pacote para a mesma casa. Aceita e avisa.
+  const k=chaveMorada(mor);
+  const irmaos = pacotes.filter(p => chaveMorada(p.morada)===k);
+
+  const nPacote = pacotes.length+1;
+  pacotes.push({ nPacote, codes:cods, code:cods[0], morada:mor, lat:null, lon:null, ordem:null });
+  cods.forEach(c=>{ referencia[c]=mor; });
+
+  const ta=document.getElementById('refInput');
+  if(ta) ta.value=(ta.value.trim()?ta.value.trim()+'\n':'') + cods.join(' | ')+'; '+mor;
+
+  capPares++; achadoMor=null;
+  pararAuto('');
+  document.getElementById('confirmar').style.display='none';
+
+  // ===== ecrã de marcação =====
+  document.getElementById('mfN').textContent = nPacote;
+  document.getElementById('mfM').textContent = mor;
+  document.getElementById('mfC').textContent = cods.join(' · ');
+  document.getElementById('mfPre').style.display='none';
+
+  // AVISO: outros pacotes para a mesma morada — leva-os todos de uma vez
+  const av=document.getElementById('mfAviso');
+  if(irmaos.length){
+    const outros=irmaos.map(p=>p.nPacote).sort((a,b)=>a-b);
+    av.innerHTML = `<b>⚠ Mesma morada que o(s) pacote(s) ${outros.join(', ')}</b><br>
+      No total, ${outros.length+1} pacotes para esta casa — entrega-os numa única paragem.`;
+    av.style.display='block';
+  }else{
+    av.style.display='none';
+  }
+
+  document.getElementById('marcarFull').style.display='flex';
+  if(navigator.vibrate) navigator.vibrate([70,60,70]);
+
+  capCodigos=[];
+  renderSess(); renderScan(); renderLista(); atualizarBadge(); renderCapResumo();
+}
+
+// o operador já escreveu o número → segue para o pacote seguinte
+function jaMarquei(){
+  document.getElementById('marcarFull').style.display='none';
+  document.getElementById('mfPre').style.display='none';
+  mostrarCam(true);
+  limparCap();
+  estado('Pronto — aponta ao pacote seguinte.');
+  if(sessaoAtiva) arrancarAuto();
+}
+
+
+
+
+
+
+// ================= TRABALHO GUARDADO (proteção contra recargas) =================
+// Grava tudo automaticamente no telemóvel. Só se apaga quando o utilizador pedir — com dupla confirmação.
+let __trabTimer=null;
+
+function salvarTrabalho(){
+  clearTimeout(__trabTimer);
+  __trabTimer=setTimeout(()=>{
+    try{
+      if(!pacotes.length){ localStorage.removeItem('trabalhoDia'); return; }
+      localStorage.setItem('trabalhoDia', JSON.stringify({
+        v:1, quando:new Date().toISOString(),
+        pacotes, referencia,
+        base: (document.getElementById('baseInput')||{}).value||''
+      }, (k,v)=> k==='grupo' ? undefined : v));
+    }catch(e){}
+  }, 400);   // agrupa alterações rápidas numa só gravação
+}
+
+function verificarTrabalho(){
+  let t=null;
+  try{ t=JSON.parse(localStorage.getItem('trabalhoDia')||'null'); }catch(e){}
+  if(!t || !t.pacotes || !t.pacotes.length) return;
+  window.__trabPendente=t;
+  const d=new Date(t.quando);
+  const quando=d.toLocaleDateString('pt-PT')+' às '+d.toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('trabM').textContent=
+    `Tens ${t.pacotes.length} pacote(s) guardados de ${quando}. Queres continuar onde ficaste, ou começar do zero?`;
+  document.getElementById('modalTrab').style.display='flex';
+}
+
+function retomarTrabalho(){
+  const t=window.__trabPendente;
+  document.getElementById('modalTrab').style.display='none';
+  if(!t) return;
+  pacotes=t.pacotes||[];
+  referencia=t.referencia||{};
+  const b=document.getElementById('baseInput');
+  if(b && t.base){ b.value=t.base; }
+  reconstruirRota();
+  renderLista(); renderScan(); atualizarBadge(); renderCapResumo();
+  estado(`✓ Trabalho retomado — ${pacotes.length} pacote(s).`);
+}
+
+function descartarTrabalho(){
+  const t=window.__trabPendente;
+  const n=t?t.pacotes.length:0;
+  // verificação extra: impedir apagar meio dia de trabalho por engano
+  if(!confirm(`Tens a certeza? Isto apaga os ${n} pacote(s) guardados e não pode ser desfeito.`)){
+    return;   // cancelou → o popup continua aberto, nada se perde
+  }
+  localStorage.removeItem('trabalhoDia');
+  window.__trabPendente=null;
+  document.getElementById('modalTrab').style.display='none';
+  estado('Lista nova. Aponta ao primeiro pacote.');
+}
+
+// reconstrói a rota otimizada a partir dos pacotes guardados (se tinham ordem)
+function reconstruirRota(){
+  const comOrdem=pacotes.filter(p=>p.ordem && p.morada);
+  if(!comOrdem.length){ rotaParagens=[]; return; }
+  const grupos={};
+  comOrdem.forEach(p=>{
+    const k=chaveMorada(p.morada);
+    if(!grupos[k]) grupos[k]={ordem:p.ordem, lat:p.lat, lon:p.lon, morada:p.morada, pacotes:[]};
+    grupos[k].pacotes.push(p);
+  });
+  rotaParagens=Object.values(grupos).sort((a,b)=>a.ordem-b.ordem);
+  rotaParagens.forEach(g=>g.pacotes.sort((a,b)=>a.nPacote-b.nPacote));
+}
+
+// grava antes de a página fechar/recarregar (sem esperar o temporizador)
+window.addEventListener('beforeunload', ()=>{
+  clearTimeout(__trabTimer);
+  try{
+    if(pacotes.length){
+      localStorage.setItem('trabalhoDia', JSON.stringify({
+        v:1, quando:new Date().toISOString(), pacotes, referencia,
+        base:(document.getElementById('baseInput')||{}).value||''
+      }, (k,v)=> k==='grupo' ? undefined : v));
+    }
+  }catch(e){}
+});
+
+// ================= IMPORTAR FICHEIRO (CSV / TXT / PDF) =================
+async function importarFicheiro(inp){
+  const f=inp.files && inp.files[0];
+  inp.value='';
+  if(!f) return;
+  const st=document.getElementById('refStatus');
+  st.style.display='block'; st.className='scan-status'; st.textContent='A ler o ficheiro…';
+  try{
+    let texto='';
+    if(/\.pdf$/i.test(f.name)){
+      texto=await textoDePDF(f);
+    }else{
+      texto=await f.text();
+    }
+    const n=importarTexto(texto);
+    st.className = n ? 'scan-status' : 'scan-status erro';
+    st.textContent = n ? `✓ ${n} morada(s) importadas de ${f.name}.`
+                       : 'Não encontrei moradas no ficheiro — precisa de códigos postais (NNNN-NNN).';
+  }catch(e){
+    st.className='scan-status erro';
+    st.textContent='Falhou a importação: '+e.message;
+  }
+}
+
+// extrai texto de um PDF com o pdf.js (carregado só quando é preciso)
+async function textoDePDF(f){
+  if(!window.pdfjsLib){
+    await new Promise((res,rej)=>{
+      const sc=document.createElement('script');
+      sc.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      sc.onload=res; sc.onerror=()=>rej(new Error('sem internet para carregar o leitor de PDF'));
+      document.head.appendChild(sc);
+    });
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+  const buf=await f.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  let out='';
+  for(let i=1;i<=pdf.numPages;i++){
+    const pg=await pdf.getPage(i);
+    const tc=await pg.getTextContent();
+    // agrupa por linha (mesma coordenada Y aproximada)
+    const linhas={};
+    tc.items.forEach(it=>{
+      const y=Math.round(it.transform[5]/4)*4;
+      (linhas[y]=linhas[y]||[]).push(it.str);
+    });
+    Object.keys(linhas).sort((a,b)=>b-a).forEach(y=>{ out+=linhas[y].join(' ')+'\n'; });
+  }
+  return out;
+}
+
+// interpreta o texto: formato "código; morada", CSV do Spoke, ou linhas com código postal
+function importarTexto(txt){
+  const linhas=txt.split('\n').map(l=>l.trim()).filter(Boolean);
+  let n=0;
+
+  // CSV do Spoke? (cabeçalho Address Line 1, City, Zip...)
+  const ehSpoke=/address\s*line\s*1/i.test(linhas[0]||'');
+
+  linhas.forEach((l,i)=>{
+    if(ehSpoke && i===0) return;
+    let cods=[], mor='';
+
+    if(ehSpoke){
+      // "1: Rua X [pac 2]","Cidade","4900-000",1  → junta as 3 primeiras colunas
+      const cols=l.match(/("([^"]|"")*"|[^,]+)/g)||[];
+      if(cols.length>=3){
+        const limpa=c=>c.replace(/^"|"$/g,'').replace(/""/g,'"').trim();
+        let a1=limpa(cols[0]).replace(/^\d+:\s*/,'').replace(/\s*\[pac[^\]]*\]/i,'');
+        mor=[a1, limpa(cols[1]), limpa(cols[2])].filter(Boolean).join(', ');
+      }
+    }else if(l.includes(';')){
+      const p=l.split(';');
+      cods=p[0].split('|').map(x=>x.trim().toUpperCase().replace(/\s+/g,'')).filter(Boolean);
+      mor=p.slice(1).join(';').trim();
+    }else if(/\d{4}-\d{3}/.test(l)){
+      mor=l;   // linha solta com código postal = uma morada
+    }
+
+    if(!mor || mor.length<8 || !/\d{4}-\d{3}/.test(mor)) return;
+    if(!cods.length) cods=['P'+(pacotes.length+1)];
+    if(cods.some(c=>pacoteComCodigo(c))) return;   // já existe
+
+    const nP=pacotes.length+1;
+    pacotes.push({nPacote:nP, codes:cods, code:cods[0], morada:mor, lat:null, lon:null, ordem:null});
+    cods.forEach(c=>{ referencia[c]=mor; });
+    n++;
+  });
+
+  if(n){
+    pacotes.forEach(p=>{ p.ordem=null; });
+    renderLista(); renderScan(); atualizarBadge(); renderCapResumo();
+  }
+  return n;
+}
+
+// ================= DITADO DE MORADAS POR VOZ =================
+// Web Speech API: pt-PT, contínuo. Cada frase (pausa) = uma morada.
+let __rec=null, vozOn=false, vozItens=[];
+
+function alternarVoz(){ vozOn ? pararVoz() : iniciarVoz(); }
+
+function iniciarVoz(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){
+    erroPopup('Este navegador não tem ditado por voz','Usa o Chrome no Android — é onde o reconhecimento de voz funciona.','semvoz');
+    return;
+  }
+  if(!window.isSecureContext){
+    erroPopup('O microfone está bloqueado','O ditado só funciona em páginas https://.','seguro');
+    return;
+  }
+  __rec=new SR();
+  __rec.lang='pt-PT';
+  __rec.continuous=true;
+  __rec.interimResults=true;
+
+  __rec.onresult=(e)=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const txt=e.results[i][0].transcript;
+      if(e.results[i].isFinal){
+        // o Chrome nem sempre fecha na pausa e cola tudo —
+        // por isso separamos nós: cada "Rua/Avenida/…" começa uma morada nova
+        separarMoradas(normalizarFala(txt)).forEach(m=>{
+          if(m && m.length>5) vozItens.push(m);
+        });
+        renderVozItens();
+      }else{
+        interim+=txt;
+      }
+    }
+    document.getElementById('vozInterim').textContent = interim ? '… '+interim : '';
+  };
+  __rec.onerror=(e)=>{
+    if(e.error==='not-allowed'){
+      erroPopup('Sem acesso ao microfone','Ativa a permissão do microfone no cadeado junto ao endereço.','mic');
+      pararVoz();
+    } else if(e.error==='no-speech'){
+      // silêncio prolongado: o Chrome corta — religa sozinho
+    } else if(e.error==='network'){
+      erroPopup('Ditado precisa de internet','O reconhecimento de voz do navegador usa a rede. Verifica a ligação.','vozNet');
+      pararVoz();
+    }
+  };
+  __rec.onend=()=>{
+    // o Chrome termina a sessão sozinho de vez em quando — religa enquanto estiver ativo
+    if(vozOn){ try{ __rec.start(); }catch(e){} }
+  };
+
+  try{ __rec.start(); }catch(e){ return; }
+  vozOn=true;
+  document.getElementById('vozPainel').style.display='block';
+  document.getElementById('btnVoz').textContent='■ Parar o ditado';
+  const st=document.getElementById('vozStatus');
+  st.classList.remove('parado');
+  st.textContent='A ouvir… fala uma morada e faz uma pausa. Fala o código postal dígito a dígito ("quatro nove zero zero, traço, cinco cinco cinco").';
+  renderVozItens();
+}
+
+function pararVoz(){
+  vozOn=false;
+  if(__rec){ try{ __rec.stop(); }catch(e){} __rec=null; }
+  document.getElementById('btnVoz').textContent='🎤 Ditar moradas por voz';
+  const st=document.getElementById('vozStatus');
+  st.classList.add('parado');
+  st.textContent = vozItens.length ? 'Parado. Confere as moradas e junta-as à lista.' : 'Parado.';
+  document.getElementById('vozInterim').textContent='';
+}
+
+// limpa a fala: números por extenso, "traço", "número", códigos postais
+const PALAVRA_NUM={zero:'0',um:'1',uma:'1',dois:'2',duas:'2','três':'3',tres:'3',quatro:'4',
+  cinco:'5',seis:'6',meia:'6',sete:'7',oito:'8',nove:'9',
+  dez:'10',onze:'11',doze:'12',treze:'13',catorze:'14',quatorze:'14',quinze:'15',
+  dezasseis:'16',dezesseis:'16',dezassete:'17',dezessete:'17',dezoito:'18',
+  dezanove:'19',dezenove:'19',vinte:'20',trinta:'30',quarenta:'40',cinquenta:'50',
+  sessenta:'60',setenta:'70',oitenta:'80',noventa:'90',cem:'100'};
+
+
+// divide um texto ditado em várias moradas: cada palavra de via começa uma nova
+const RE_VIA_INICIO=/(?=\b(?:rua|avenida|travessa|largo|beco|estrada|caminho|praceta|praça|praca|urbanização|urbanizacao|lugar|quinta|alameda|calçada|calcada)\b)/i;
+function separarMoradas(txt){
+  if(!txt) return [];
+  const partes=txt.split(RE_VIA_INICIO).map(x=>x.trim()).filter(x=>x.length>5);
+  if(partes.length<=1) return [txt.trim()];
+  // o que vier ANTES da primeira via (ex.: "ok" ou lixo) cola-se à primeira, se for curto
+  if(!RE_VIA_INICIO.test(' '+partes[0]) && partes.length>1 && partes[0].length<12){
+    partes.shift();
+  }
+  return partes;
+}
+
+function normalizarFala(t){
+  let m=t.trim().toLowerCase();
+
+  // 1) palavras-número → dígitos (com fronteira de palavra: "quatro quatro" → "4 4")
+  Object.keys(PALAVRA_NUM).forEach(k=>{
+    m=m.replace(new RegExp('\\b'+k+'\\b','g'), PALAVRA_NUM[k]);
+  });
+
+  // 2) "vinte e cinco" → 25 (dezena + e + unidade)
+  m=m.replace(/\b([2-9]0)\s+e\s+([1-9])\b/g,(x,d,u)=>String(+d + +u));
+
+  // 3) traço/hífen e "número"
+  m=m.replace(/\s(traço|traco|hífen|hifen)\s/g,'-')
+     .replace(/\bn[úu]mero\b/g,'nº');
+
+  // 4) sequências de dígitos SOLTOS (falados um a um) colam: "4 9 2 5" → "4925"
+  //    (não toca em números multi-dígito vizinhos: "45 4900" fica como está)
+  m=m.replace(/\b\d(?:\s\d)+\b/g, x=>x.replace(/\s/g,''));
+
+  // 5) códigos postais: "4925 - 441" e "4900 500" → NNNN-NNN
+  m=m.replace(/(\d{4})\s*-\s*(\d{3})/g,'$1-$2');
+  m=m.replace(/\b(\d{4})\s+(\d{3})\b/g,'$1-$2');
+
+  // 6) capitalização suave
+  m=m.replace(/\s+/g,' ').trim();
+  m=m.replace(/(^|[\s,\-])([a-zà-ú])/g,(x,a,b)=>a+b.toUpperCase());
+  m=m.replace(/\bNº\b/g,'nº')
+     .replace(/\bDe\b/g,'de').replace(/\bDa\b/g,'da').replace(/\bDo\b/g,'do')
+     .replace(/\bDos\b/g,'dos').replace(/\bDas\b/g,'das').replace(/\bE\b/g,'e');
+  return expandir(m);
+}
+
+function renderVozItens(){
+  const box=document.getElementById('vozItens');
+  const btn=document.getElementById('btnVozAdd');
+  if(!vozItens.length){ box.innerHTML=''; btn.style.display='none'; return; }
+  box.innerHTML=vozItens.map((m,i)=>`
+    <div class="voz-item">
+      <textarea rows="2" oninput="vozItens[${i}]=this.value">${m}</textarea>
+      <button class="rm" onclick="vozItens.splice(${i},1);renderVozItens()">×</button>
+    </div>`).join('');
+  btn.style.display='block';
+  btn.textContent=`✓ Juntar ${vozItens.length} morada(s) à lista`;
+}
+
+function adicionarVoz(){
+  if(!vozItens.length) return;
+  pararVoz();
+  vozItens.forEach(m=>{
+    const mor=m.trim();
+    if(!mor) return;
+    const n=pacotes.length+1;
+    const cod='P'+n;
+    pacotes.push({nPacote:n, codes:[cod], code:cod, morada:mor, lat:null, lon:null, ordem:null});
+    referencia[cod]=mor;
+    const ta=document.getElementById('refInput');
+    if(ta) ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+cod+'; '+mor;
+  });
+  const n=vozItens.length;
+  vozItens=[];
+  renderVozItens();
+  document.getElementById('vozPainel').style.display='none';
+  pacotes.forEach(p=>{ p.ordem=null; });
+  renderLista(); renderSess(); atualizarBadge(); renderCapResumo();
+  const st=document.getElementById('listaResumo');
+  estadoLista(`✓ ${n} morada(s) ditada(s) juntas à lista. Nota: sem código de barras — se precisares, bipa-os depois em Capturar.`);
+}
+function estadoLista(msg){
+  const s=document.getElementById('refStatus');
+  if(s){ s.style.display='block'; s.className='scan-status'; s.textContent=msg; }
+}
+
+// ================= VISTA / EDIÇÃO NO CARTÃO =================
+let __morada='', __editando=false;
+
+function abrirConfirmacao(){
+  const e=document.getElementById('confNum');
+  if(e) e.textContent = pacotes.length+1;
+  document.getElementById('confirmar').style.display='block';
+  modoVista();
+}
+function setMorada(m){ __morada=m||''; document.getElementById('capMorada').value=__morada; renderVista(); }
+function renderVista(){
+  const vm=document.getElementById('vMorada'), vc=document.getElementById('vCods');
+  if(!vm) return;
+  const m=document.getElementById('capMorada').value.trim();
+  vm.textContent = m || 'não lida — corrige';
+  vm.className = 'v-v' + (m?'':' falta');
+  vc.textContent = capCodigos.length ? capCodigos.map(c=>c.val).join(' · ') : 'nenhum — corrige';
+  vc.className = 'v-v' + (capCodigos.length?'':' falta');
+}
+function modoVista(){
+  __editando=false;
+  document.getElementById('vistaLeitura').style.display='block';
+  document.getElementById('vistaEdicao').style.display='none';
+  renderVista();
+}
+function modoCorrigir(){
+  __editando=true;
+  document.getElementById('vistaLeitura').style.display='none';
+  document.getElementById('vistaEdicao').style.display='block';
+  const t=document.getElementById('capMorada');
+  t.focus(); t.setSelectionRange(t.value.length, t.value.length);
+  renderCods();
+}
+
+// ================= LISTA DE PACOTES =================
+function temIrmaos(i){
+  const p=pacotes[i]; if(!p||!p.morada) return false;
+  const k=chaveMorada(p.morada);
+  return pacotes.some((x,j)=>j!==i && x.morada && chaveMorada(x.morada)===k);
+}
+function renderLista(){
+  const ul=document.getElementById('listaPac');
+  const btn=document.getElementById('btnFinal');
+  if(!ul) return;
+  if(!pacotes.length){
+    ul.innerHTML='<li class="vazio">Ainda sem pacotes. Vai a Capturar.</li>';
+    document.getElementById('listaResumo').innerHTML='';
+    if(btn) btn.style.display='none';
+    return;
+  }
+  if(btn) btn.style.display='block';
+  ul.innerHTML=pacotes.map((p,i)=>`
+    <li class="item ${p.morada?'':'semmorada'}" id="li${i}">
+      <span class="num">${p.nPacote||i+1}</span>
+      <div class="info">
+        <div class="mor ${p.morada?'':'faltando'}">${temIrmaos(i)?'<span class="dupmark">MESMA MORADA</span> ':''}${p.morada||'sem morada'}</div>
+        <div class="cod">${(p.codes||[p.code]).join(' · ')}</div>
+        <div class="edit-box" id="ed${i}" style="display:none">
+          <textarea id="tx${i}">${p.morada||''}</textarea>
+          <div class="dupla">
+            <button class="btn mini" onclick="salvarEdit(${i})">Guardar</button>
+            <button class="btn mini sec" onclick="fecharEdit(${i})">Cancelar</button>
+          </div>
+        </div>
+      </div>
+      <button class="ed" onclick="abrirEdit(${i})">✏️</button>
+      <button class="rm" onclick="apagarPac(${i})">×</button>
+    </li>`).join('');
+  const sem=pacotes.filter(p=>!p.morada).length;
+  document.getElementById('listaResumo').innerHTML=
+    `<span class="chip">${pacotes.length} pacotes</span>`+(sem?`<span class="chip aviso">${sem} sem morada</span>`:'');
+}
+function abrirEdit(i){ document.getElementById('ed'+i).style.display='block'; document.getElementById('tx'+i).focus(); }
+function fecharEdit(i){ document.getElementById('ed'+i).style.display='none'; }
+function salvarEdit(i){
+  const v=document.getElementById('tx'+i).value.trim();
+  if(!v) return;
+  pacotes[i].morada=v; pacotes[i].lat=null; pacotes[i].lon=null;
+  pacotes[i].falha=null; pacotes[i].aviso=null; pacotes[i].via=null;
+  (pacotes[i].codes||[]).forEach(c=>{ referencia[c]=v; });
+  pacotes.forEach(p=>{ p.ordem=null; });          // a rota deixa de ser válida
+  fecharEdit(i);
+  renderLista(); renderScan(); atualizarBadge();
+  const b=document.getElementById('btnRecalc'); if(b) b.style.display='block';
+}
+function apagarPac(i){
+  (pacotes[i].codes||[]).forEach(c=>{ delete referencia[c]; });
+  pacotes.splice(i,1);
+  pacotes.forEach((p,k)=>{ p.nPacote=k+1; });
+  renderLista(); renderScan(); renderSess(); atualizarBadge();
+}
+function finalizarLista(){
+  if(!pacotes.length) return;
+  const sem=pacotes.filter(p=>!p.morada).length;
+  if(sem && !confirm(`${sem} pacote(s) sem morada não vão entrar na rota. Continuar?`)) return;
+  pararAuto();
+  ir('otim');
+}
+
+// ================= ABRIR NO MAPA =================
+const ehIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+function abrirMapa(i, app){
+  const p=pacotes[i]; if(!p||!p.morada) return;
+  const q=encodeURIComponent(p.morada+', Portugal');
+  let url;
+  if(app==='apple' || (app==='auto' && ehIOS)){
+    url = p.lat!=null ? `https://maps.apple.com/?daddr=${p.lat},${p.lon}&dirflg=d` : `https://maps.apple.com/?daddr=${q}&dirflg=d`;
+  }else{
+    url = p.lat!=null
+      ? `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=driving`
+      : `https://www.google.com/maps/dir/?api=1&destination=${q}&travelmode=driving`;
+  }
+  window.open(url,'_blank');
+}
+
+
+function limparCap(){
+  capCodigos=[]; __morada=''; renderCods();
+  document.getElementById('candWrap').style.display='none';
+  document.getElementById('cands').innerHTML='';
+  document.getElementById('valResult').innerHTML='';
+  document.getElementById('capMorada').value='';
+  document.getElementById('capCodigo').value='';
+  document.getElementById('confirmar').style.display='none';
+}
+function renderCapResumo(){
+  const cods=Object.keys(referencia).length;
+  const moradas=new Set(Object.values(referencia)).size;
+  document.getElementById('capResumo').innerHTML = moradas
+    ? `<span class="chip">${moradas} moradas</span><span class="chip">${cods} códigos reconhecidos</span>` : '';
+}
+
+
+// ---------- Comportamento de aplicação ----------
+// iOS ignora user-scalable: bloqueia os gestos de zoom explicitamente
+['gesturestart','gesturechange','gestureend'].forEach(g=>
+  document.addEventListener(g, e=>e.preventDefault(), {passive:false}));
+// bloqueia o zoom por duplo toque
+let __ultimoToque=0;
+document.addEventListener('touchend', e=>{
+  const agora=Date.now();
+  if(agora-__ultimoToque<=320){ e.preventDefault(); }
+  __ultimoToque=agora;
+}, {passive:false});
+// bloqueia pinch com dois dedos
+document.addEventListener('touchmove', e=>{
+  if(e.touches.length>1) e.preventDefault();
+}, {passive:false});
+// zoom por teclado/roda no PC
+document.addEventListener('wheel', e=>{ if(e.ctrlKey) e.preventDefault(); }, {passive:false});
+
+// ---------- Navegação ----------
+function ir(p){
+  document.querySelectorAll('.painel').forEach(s=>s.classList.remove('ativo'));
+  document.getElementById('p-'+p).classList.add('ativo');
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('ativo', b.dataset.p===p));
+  if(p!=='scan') pararScanner();
+  if(p==='cap'){ aquecerOCR(); estado('Carrega em ▶ Iniciar captura para começar.'); } else { pararCam(); mostrarCam(false); pararAuto(); }
+  if(p==='lista') renderLista(); else if(vozOn) pararVoz();
+  if(p==='otim'){ renderRota(); atualizarFalhas(); renderPendentes(); }
+  if(p==='export') resumoExport();
+  if(p==='cap') renderCapResumo();
+  document.querySelector("main").scrollTo(0,0);
+}
+
+// ---------- Lista de referência ----------
+function carregarRef(){
+  const txt = document.getElementById('refInput').value.trim();
+  referencia = {};
+  let n=0;
+  txt.split('\n').forEach(l=>{
+    l=l.trim(); if(!l) return;
+    // separa no primeiro ; tab ou , — o resto é a morada
+    let m = l.split(/[;\t]|,(?=\s*\S)/);
+    if(m.length>=2){
+      const cods = m[0].split('|').map(x=>x.trim().toUpperCase().replace(/\s+/g,'')).filter(Boolean);
+      const mor = l.slice(l.indexOf(m[1])).trim();
+      if(cods.length){
+        cods.forEach(c=>{ referencia[c]=mor; });
+        pacotes.push({nPacote:pacotes.length+1, codes:cods, code:cods[0], morada:mor, lat:null, lon:null, ordem:null});
+        n++;
+      }
+    }
+  });
+  const s = document.getElementById('refStatus');
+  s.style.display='block';
+  if(n>0){ s.className='scan-status'; s.textContent=`✓ ${n} moradas carregadas. Já podes scanear.`; }
+  else{ s.className='scan-status erro'; s.textContent='Nada carregado — verifica o formato (código; morada).'; }
+  renderCapResumo(); renderLista(); renderScan(); atualizarBadge();
+}
+
+// ---------- Leitor de códigos autónomo (só QR/barras, sem OCR) ----------
+let scanStream=null, scanOn=false, detScan=null;
+
+async function alternarScan(){ scanOn ? pararScanner() : iniciarScanner(); }
+
+async function iniciarScanner(){
+  if(scanOn) return;
+  if(!window.isSecureContext){
+    erroPopup('A câmara está bloqueada','Abre a página em https://.','seguro'); return;
+  }
+  try{
+    scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280}}});
+    document.getElementById('cam2').srcObject=scanStream;
+    detScan=await criarDetector();
+    if(!detScan){
+      erroPopup('Não consigo ler códigos','As bibliotecas não carregaram — precisa de internet. Escreve o código à mão em baixo.','semdet');
+      pararScanner(); return;
+    }
+    scanOn=true;
+    const b=document.getElementById('btnScan');
+    b.textContent='■ Parar a captura'; b.classList.add('parar');
+    estadoScan('A ler — aponta ao código.');
+    cicloScan();
+  }catch(e){
+    erroPopup('Sem acesso à câmara', e.name==='NotAllowedError'?'Ativa a permissão da câmara no cadeado junto ao endereço.':e.message,'cam');
+  }
+}
+function pararScanner(){
+  scanOn=false;
+  if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; }
+  const b=document.getElementById('btnScan');
+  if(b){ b.textContent='▶ Iniciar leitura'; b.classList.remove('parar'); }
+  estadoScan('Câmara parada.');
+}
+function estadoScan(t,erro){
+  const s=document.getElementById('scanStatus');
+  if(s){ s.className='scan-status'+(erro?' erro':''); s.textContent=t; }
+}
+let __ultScan=0;
+async function cicloScan(){
+  const v=document.getElementById('cam2');
+  const c=document.createElement('canvas');
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  while(scanOn){
+    try{
+      if(v.videoWidth){
+        desenharFrame(v,c,ctx);
+        const r=await detScan.detect(c);
+        if(r.length && Date.now()-__ultScan>900){
+          __ultScan=Date.now();
+          juntarPacote(r[0].rawValue.trim().toUpperCase().replace(/\s+/g,''));
+          if(navigator.vibrate) navigator.vibrate(60);
+        }
+      }
+    }catch(e){}
+    await new Promise(x=>setTimeout(x, __motorCod==='zxing' ? 50 : 80));
+  }
+}
+function addManual(){
+  const i=document.getElementById('manualCode');
+  const v=i.value.trim().toUpperCase().replace(/\s+/g,'');
+  if(v){ juntarPacote(v); i.value=''; }
+}
+
+// Bipar um pacote → diz qual é o seu número e a sua paragem
+function juntarPacote(code){
+  const p = pacotes.find(x => (x.codes||[x.code]).includes(code));
+
+  if(!p){
+    mostrarAchado(null, code);
+    estadoScan('Código desconhecido — este pacote não foi capturado.', true);
+    return;
+  }
+  if(navigator.vibrate) navigator.vibrate(60);
+  const paragem = p.ordem || (pacotes.filter(x=>x.morada).indexOf(p)+1);
+  mostrarAchado(p, code, paragem, !!p.ordem);
+  estadoScan(`✓ Pacote nº ${p.nPacote} — paragem ${paragem}`);
+  renderScan();
+}
+
+function mostrarAchado(p, code, paragem, otimizado){
+  const box=document.getElementById('achado');
+  if(!box) return;
+  box.style.display='block';
+  if(!p){
+    box.innerHTML=`<div class="achado nao">
+      <div class="achado-l">Não encontrado</div>
+      <div class="achado-n">?</div>
+      <div class="achado-m">Este código não está na lista de pacotes capturados.</div>
+      <div class="achado-c">${code}</div>
+    </div>`;
+    return;
+  }
+  const k=chaveMorada(p.morada);
+  const irmaos=pacotes.filter(x=>x!==p && chaveMorada(x.morada)===k).map(x=>x.nPacote).sort((a,b)=>a-b);
+  box.innerHTML=`<div class="achado">
+    <div class="achado-l">✍️ Número escrito no pacote</div>
+    <div class="achado-n">${p.nPacote}</div>
+    <div class="achado-p">${otimizado ? 'Paragem '+paragem : 'Paragem '+paragem+' (por otimizar)'}</div>
+    <div class="achado-m">${p.morada||'sem morada'}</div>
+    ${irmaos.length?`<div class="achado-irm">⚠ Leva também o(s) pacote(s) <b>${irmaos.join(', ')}</b> — mesma morada</div>`:''}
+    <div class="achado-c">${(p.codes||[p.code]).join(' · ')}</div>
+  </div>`;
+  box.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function renderScan(){
+  const ul=document.getElementById('scanLista');
+  if(!ul) return;
+  const comOrdem=pacotes.filter(p=>p.ordem).sort((a,b)=>a.ordem-b.ordem);
+  const lista = comOrdem.length ? comOrdem : pacotes;
+  if(!lista.length){
+    ul.innerHTML='<li class="vazio">Sem pacotes. Captura-os primeiro.</li>';
+    document.getElementById('scanResumo').innerHTML='';
+    return;
+  }
+  ul.innerHTML = lista.map((p,i)=>`
+    <li class="item">
+      <span class="num">${p.ordem||i+1}</span>
+      <div class="info">
+        <div class="mor">${p.morada||'sem morada'}</div>
+        <div class="cod"><span class="pacchip">📦 pacote ${p.nPacote||'?'}</span></div>
+      </div>
+    </li>`).join('');
+  document.getElementById('scanResumo').innerHTML=
+    `<span class="chip">${lista.length} pacotes</span>`+
+    (comOrdem.length?'<span class="chip">rota otimizada</span>':'<span class="chip aviso">sem otimizar</span>');
+}
+
+function atualizarBadge(){
+  document.getElementById('badgeCount').textContent = `${pacotes.length} paragens`;
+  salvarTrabalho();
+}
+
+
+
+
+// posição aproximada do utilizador (preenchida quando usa o GPS) — torna as sugestões locais
+let __posAtual=null;
+if(navigator.geolocation){
+  // pedido silencioso de baixa precisão só para ordenar sugestões; se negado, segue sem
+  navigator.geolocation.getCurrentPosition(
+    p=>{ __posAtual={lat:p.coords.latitude, lon:p.coords.longitude}; },
+    ()=>{}, {enableHighAccuracy:false, timeout:8000, maximumAge:600000});
+}
+
+async function nominatimPerto(q, pos){
+  const p=new URLSearchParams({format:'json', limit:'6', countrycodes:'pt', addressdetails:'1', q});
+  if(pos){
+    // caixa de ~40 km à volta da posição — dá prioridade ao local, sem excluir o resto
+    const d=0.2;
+    p.set('viewbox', `${pos.lon-d},${pos.lat+d},${pos.lon+d},${pos.lat-d}`);
+    // sem bounded=1: é prioridade, não filtro
+  }
+  const r=await fetch('https://nominatim.openstreetmap.org/search?'+p.toString(),
+                      {headers:{'Accept-Language':'pt'}});
+  if(!r.ok) throw new Error('serviço de mapas indisponível ('+r.status+')');
+  return await r.json();
+}
+
+
+
+// ================= MORADAS NA ABA OTIMIZAR (sempre visíveis, editáveis com sugestões) =================
+function renderPendentes(){
+  const box=document.getElementById('pendBox');
+  if(!box) return;
+  const com=pacotes.filter(p=>p.morada);
+  const temRota=pacotes.some(p=>p.ordem);
+  if(!com.length){ box.innerHTML=''; return; }
+
+  box.innerHTML=`<div class="resumo" style="margin:14px 0">
+      <span class="chip">${temRota?'✏️ Corrigir moradas':com.length+' moradas prontas a otimizar'}</span>
+      ${temRota?'<span class="chip aviso">corrigir invalida a rota — recalcula depois</span>':'<span class="chip">✏️ toca para corrigir</span>'}</div>`
+    + com.map(p=>{
+      const i=pacotes.indexOf(p);
+      return `<div class="otim-item" id="pd${i}">
+        <span class="ord" style="background:#8A9A8E">${p.nPacote}</span>
+        <div class="info">
+          <div class="mor" id="pdm${i}">${p.morada}</div>
+          <div class="edit-box" id="pde${i}" style="display:none">
+            <div class="ac-wrap">
+              <textarea id="pdt${i}" oninput="moradaDigitada(${i})" autocomplete="off">${p.morada}</textarea>
+              <div class="ac-lista" id="pdl${i}" style="display:none"></div>
+            </div>
+            <div class="dupla">
+              <button class="btn mini" onclick="salvarPend(${i})">Guardar</button>
+              <button class="btn mini sec" onclick="fecharPend(${i})">Cancelar</button>
+            </div>
+          </div>
+        </div>
+        <button class="ed" onclick="abrirPend(${i})">✏️</button>
+      </div>`;
+    }).join('');
+}
+function abrirPend(i){
+  document.getElementById('pde'+i).style.display='block';
+  document.getElementById('pdm'+i).style.display='none';
+  document.getElementById('pdt'+i).focus();
+}
+function fecharPend(i){
+  document.getElementById('pde'+i).style.display='none';
+  document.getElementById('pdm'+i).style.display='block';
+  document.getElementById('pdl'+i).style.display='none';
+}
+function salvarPend(i){
+  const v=document.getElementById('pdt'+i).value.trim();
+  if(!v) return;
+  // morada mudou à mão (sem sugestão) → refazer geocodificação
+  if(pacotes[i].via!=='sugestão do mapa' && chaveMorada(v)!==chaveMorada(pacotes[i].morada)){
+    pacotes[i].lat=null; pacotes[i].lon=null; pacotes[i].via=null;
+  }
+  pacotes[i].morada=v;
+  pacotes[i].falha=null; pacotes[i].aviso=null;
+  (pacotes[i].codes||[]).forEach(c=>{ referencia[c]=v; });
+  if(pacotes.some(p=>p.ordem)){
+    pacotes.forEach(p=>{ p.ordem=null; });
+    rotaParagens=[];
+    const br=document.getElementById('btnRecalc'); if(br) br.style.display='block';
+    renderRota();
+  }
+  renderPendentes(); renderLista(); atualizarFalhas();
+  salvarTrabalho();
+}
+
+// sugestões enquanto escreve — mesma lógica da base
+let __pdTimers={};
+function moradaDigitada(i){
+  clearTimeout(__pdTimers[i]);
+  const v=document.getElementById('pdt'+i).value.trim();
+  const box=document.getElementById('pdl'+i);
+  if(v.length<4){ box.style.display='none'; return; }
+  box.style.display='block';
+  box.innerHTML='<div class="ac-carregando">A procurar…</div>';
+  __pdTimers[i]=setTimeout(()=>sugerirMorada(i,v), 700);
+}
+async function sugerirMorada(i,v){
+  const box=document.getElementById('pdl'+i);
+  try{
+    let res=await nominatimPerto(v, __posAtual);
+    if(!res.length) res=await nominatimLivre(v+', Portugal');
+    if(!res.length){ box.innerHTML='<div class="ac-carregando">Nada encontrado — escreve mais ou guarda como está.</div>'; return; }
+    box.innerHTML=res.slice(0,5).map(x=>{
+      const partes=(x.display_name||'').split(',').map(t=>t.trim());
+      return `<div class="ac-item" data-lat="${x.lat}" data-lon="${x.lon}" onclick="escolherMorada(${i},this)">
+        <div><b>${partes.slice(0,2).join(', ')}</b></div>
+        <div class="ac-sec">${partes.slice(2,5).join(', ')}</div></div>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML='<div class="ac-carregando">Sem ligação ao serviço de mapas.</div>';
+  }
+}
+function escolherMorada(i, el){
+  const p=pacotes[i];
+  const cp=(document.getElementById('pdt'+i).value.match(/\d{4}-\d{3}/)||[])[0]||
+           ((p.morada||'').match(/\d{4}-\d{3}/)||[])[0]||'';
+  const nome=el.querySelector('b').textContent + ', ' + el.querySelector('.ac-sec').textContent;
+  const v = cp && !nome.includes(cp) ? nome+' '+cp : nome;
+  document.getElementById('pdt'+i).value=v;
+  // sugestão escolhida = coordenadas conhecidas: fixa-as
+  p.lat=parseFloat(el.dataset.lat); p.lon=parseFloat(el.dataset.lon);
+  p.via='sugestão do mapa'; p.aproximado=false; p.falha=null; p.aviso=null;
+  document.getElementById('pdl'+i).style.display='none';
+  salvarPend(i);
+}
+
+// ================= AUTOCOMPLETAR DA BASE =================
+let __acTimer=null, __acSeq=0;
+
+function baseDigitada(){
+  baseFixada=false;
+  clearTimeout(__acTimer);
+  const v=document.getElementById('baseInput').value.trim();
+  const box=document.getElementById('acLista');
+  if(v.length<4){ box.style.display='none'; return; }
+  box.style.display='block';
+  box.innerHTML='<div class="ac-carregando">A procurar…</div>';
+  // debounce de 700ms: respeita o limite de 1 pedido/seg do Nominatim
+  __acTimer=setTimeout(()=>sugerirBase(v), 700);
+}
+
+async function sugerirBase(v){
+  const seq=++__acSeq;
+  const box=document.getElementById('acLista');
+  try{
+    // prioriza a zona onde o utilizador ESTÁ (se a posição for conhecida), senão Portugal inteiro
+    let res=await nominatimPerto(v, __posAtual);
+    if(!res.length){ res=await nominatimLivre(v+', Portugal'); }
+    if(seq!==__acSeq) return;   // já há uma busca mais recente
+    if(!res.length){
+      box.innerHTML='<div class="ac-carregando">Nada encontrado — continua a escrever ou usa o 📍.</div>';
+      return;
+    }
+    box.innerHTML=res.slice(0,5).map((x,i)=>{
+      const partes=(x.display_name||'').split(',').map(t=>t.trim());
+      const titulo=partes.slice(0,2).join(', ');
+      const resto=partes.slice(2,5).join(', ');
+      return `<div class="ac-item" data-lat="${x.lat}" data-lon="${x.lon}" onclick="escolherBase(this)">
+        <div><b>${titulo}</b></div><div class="ac-sec">${resto}</div></div>`;
+    }).join('');
+  }catch(e){
+    if(seq===__acSeq) box.innerHTML='<div class="ac-carregando">Sem ligação ao serviço de mapas.</div>';
+  }
+}
+
+function escolherBase(el){
+  const inp=document.getElementById('baseInput');
+  inp.value = el.querySelector('b').textContent + ', ' + el.querySelector('.ac-sec').textContent;
+  baseCoord={lat:parseFloat(el.dataset.lat), lon:parseFloat(el.dataset.lon)};
+  baseFixada=true;   // coordenadas já conhecidas: sem geocodificar outra vez
+  document.getElementById('acLista').style.display='none';
+  const st=document.getElementById('otimStatus');
+  st.style.display='block'; st.className='scan-status';
+  st.textContent='✓ Ponto de partida definido.';
+}
+
+// fecha a lista ao tocar fora
+document.addEventListener('pointerdown', e=>{
+  const box=document.getElementById('acLista');
+  if(box && box.style.display!=='none' && !e.target.closest('.ac-wrap')){
+    box.style.display='none';
+  }
+});
+
+// ================= LOCALIZAÇÃO ATUAL =================
+function usarLocalizacao(){
+  const btn=document.getElementById('btnGPS');
+  const st=document.getElementById('otimStatus');
+  if(!navigator.geolocation){
+    erroPopup('Sem GPS','Este navegador não dá acesso à localização. Escreve a morada da base à mão.','gps');
+    return;
+  }
+  btn.disabled=true; btn.textContent='📍 A localizar…';
+  st.style.display='block'; st.className='scan-status'; st.textContent='A obter a tua posição…';
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    baseCoord={lat:pos.coords.latitude, lon:pos.coords.longitude};
+    __posAtual=baseCoord;
+    const precisao=Math.round(pos.coords.accuracy);
+    // tenta descobrir a morada desta posição (só para mostrar)
+    let nome=`A minha posição (${baseCoord.lat.toFixed(5)}, ${baseCoord.lon.toFixed(5)})`;
+    try{
+      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${baseCoord.lat}&lon=${baseCoord.lon}&zoom=18`,
+        {headers:{'Accept-Language':'pt'}});
+      const d=await r.json();
+      if(d && d.display_name) nome=d.display_name.split(',').slice(0,3).join(',').trim();
+    }catch(e){}
+    document.getElementById('baseInput').value=nome;
+    baseFixada=true;               // já temos coordenadas: não é preciso geocodificar
+    btn.disabled=false; btn.textContent='📍 Usar a minha localização atual';
+    st.className='scan-status';
+    st.textContent=`✓ Posição obtida (precisão ~${precisao} m).`;
+  }, err=>{
+    btn.disabled=false; btn.textContent='📍 Usar a minha localização atual';
+    st.style.display='none';
+    const m={1:'Negaste a permissão de localização. Ativa-a no cadeado junto ao endereço.',
+             2:'Não consegui obter a posição — sem sinal de GPS.',
+             3:'Demorou demasiado tempo. Tenta outra vez ao ar livre.'}[err.code] || err.message;
+    erroPopup('Não consegui localizar-te', m, null);
+  }, {enableHighAccuracy:true, timeout:12000, maximumAge:0});
+}
+let baseFixada=false;
+
+// ---------- Geocodificação ----------
+// Estratégia: busca LIVRE do Nominatim (usa as heurísticas boas dele)
+// + validação geográfica contra o centro do código postal (garante a cidade certa).
+// A busca estruturada com postalcode NNNN-NNN devolve vazio com frequência — não a usamos.
+
+const RAIO_MAX_KM = 7;
+const cacheCP = {};
+
+async function infoCP(cp){
+  if(cacheCP[cp]!==undefined) return cacheCP[cp];
+  try{
+    const r=await fetch(`https://json.geoapi.pt/cp/${cp}`, {headers:{'Accept':'application/json'}});
+    if(!r.ok){ cacheCP[cp]=null; return null; }
+    const d=await r.json();
+    let centro=null;
+    const c = d.centro || d.centroide || d.coordenadas;
+    if(Array.isArray(c) && c.length>=2) centro={lat:+c[0], lon:+c[1]};
+    else if(c && c.lat!=null) centro={lat:+c.lat, lon:+(c.lon??c.lng)};
+    else if(Array.isArray(d.centroides) && d.centroides.length)
+      centro={lat:+d.centroides[0][0], lon:+d.centroides[0][1]};
+    // último recurso: média dos pontos das ruas, se existirem
+    if(!centro && Array.isArray(d.pontos) && d.pontos.length){
+      let la=0,lo=0,n=0;
+      d.pontos.forEach(p=>{
+        const cc=p.coordenadas||p.coords||null;
+        if(Array.isArray(cc)&&cc.length>=2){ la+=+cc[0]; lo+=+cc[1]; n++; }
+      });
+      if(n) centro={lat:la/n, lon:lo/n};
+    }
+    const info={
+      centro,
+      freguesia: d.Freguesia||d.freguesia||'',
+      concelho:  d.Concelho||d.concelho||d.Municipio||d.municipio||'',
+      localidade:d.Localidade||d.localidade||''
+    };
+    cacheCP[cp]=info;
+    // regista a cidade deste código postal, para os exportadores usarem
+    const cid=[info.freguesia, info.concelho||info.localidade].filter(Boolean).join(', ');
+    if(cid) cacheCidadeCP[cp]=cid;
+    return info;
+  }catch(e){ cacheCP[cp]=null; return null; }
+}
+
+// busca LIVRE — deixa o Nominatim aplicar as heurísticas dele
+async function nominatimLivre(q){
+  const p=new URLSearchParams({format:'json', limit:'6', countrycodes:'pt',
+                               addressdetails:'1', q});
+  const r=await fetch('https://nominatim.openstreetmap.org/search?'+p.toString(),
+                      {headers:{'Accept-Language':'pt'}});
+  if(!r.ok) throw new Error('serviço de mapas indisponível ('+r.status+')');
+  return await r.json();
+}
+
+// dos resultados, escolhe o que respeita a zona do código postal
+function escolher(lista, cp, centro){
+  if(!lista || !lista.length) return null;
+  const cand=lista.map(x=>{
+    const coord={lat:parseFloat(x.lat), lon:parseFloat(x.lon)};
+    const cpRes=((x.address&&x.address.postcode)||'').replace(/\s/g,'');
+    return {coord, cpRes,
+      d: centro ? dist(centro,coord) : null,
+      cpIgual: cpRes===cp,
+      cpZona: cpRes.slice(0,4)===cp.slice(0,4)};
+  });
+  let m=cand.find(c=>c.cpIgual);
+  if(m && (m.d==null || m.d<=RAIO_MAX_KM)) return {coord:m.coord, confianca:'exata'};
+  m=cand.find(c=>c.cpZona && (c.d==null || c.d<=RAIO_MAX_KM));
+  if(m) return {coord:m.coord, confianca:'zona'};
+  m=cand.filter(c=>c.d!=null && c.d<=RAIO_MAX_KM).sort((a,b)=>a.d-b.d)[0];
+  if(m) return {coord:m.coord, confianca:'proximidade'};
+  const perto=cand.filter(c=>c.d!=null).sort((a,b)=>a.d-b.d)[0];
+  return {coord:null, rejeitado:true, distancia: perto?Math.round(perto.d):null};
+}
+
+async function geocodeExplicado(morada){
+  const cp=(morada.match(/\d{4}-\d{3}/)||[])[0];
+  const rua=morada.split(',')[0].trim();
+  const semNumero=rua.replace(/\s*n[ºo°]?\s*\.?\s*\d+[A-Za-z]?/gi,'').trim();
+
+  if(!cp){
+    return {coord:null, erro:'a morada não tem código postal (NNNN-NNN). Sem ele não consigo garantir a cidade certa.'};
+  }
+
+  // 1) zona de referência do código postal
+  const info=await infoCP(cp);
+  const centro = info && info.centro ? info.centro : null;
+  const freguesia = info ? info.freguesia : '';
+  const concelho  = info ? (info.concelho || info.localidade) : '';
+
+  // 2) buscas LIVRES, da mais específica à mais geral
+  //    (com o CP no texto, e depois com freguesia/concelho reais dos CTT)
+  const buscas=[
+    `${rua}, ${cp} ${freguesia||''}, Portugal`,
+    freguesia ? `${rua}, ${freguesia}, ${concelho}, Portugal` : null,
+    concelho  ? `${rua}, ${concelho}, Portugal` : `${rua}, Portugal`,
+    concelho && semNumero!==rua ? `${semNumero}, ${concelho}, Portugal` : null,
+    freguesia && semNumero ? `${semNumero}, ${freguesia}, Portugal` : null
+  ].filter(Boolean);
+
+  let rejeitadoLonge=null;
+  for(let k=0;k<buscas.length;k++){
+    try{
+      const lista=await nominatimLivre(buscas[k]);
+      const r=escolher(lista, cp, centro);
+      if(r && r.coord){
+        return {coord:r.coord,
+                via: k===0?'morada com código postal':'rua + '+(freguesia||concelho),
+                confianca:r.confianca,
+                aproximado: r.confianca==='proximidade'};
+      }
+      if(r && r.rejeitado && r.distancia!=null) rejeitadoLonge=r.distancia;
+    }catch(e){
+      return {coord:null, erro:'O serviço de mapas não respondeu: '+e.message};
+    }
+    await new Promise(r=>setTimeout(r,1100));
+  }
+
+  // 3) rede de segurança: centro do código postal (cidade certa garantida)
+  if(centro){
+    return {coord:centro, via:'centro do código postal '+cp, aproximado:true,
+            aviso:`Não encontrei "${rua}" no mapa. Usei o centro de ${cp}${freguesia?' ('+freguesia+')':''} — confere a rua ao chegar perto.`};
+  }
+
+  let motivo;
+  if(rejeitadoLonge!=null){
+    motivo=`encontrei "${rua}", mas a ${rejeitadoLonge} km do código postal ${cp} — é outra cidade. Rejeitei. Confere a rua ou o código postal.`;
+  }else if(!info){
+    motivo=`o código postal ${cp} não existe na base dos CTT — confere-o. Podes também pôr as coordenadas à mão.`;
+  }else{
+    motivo=`não encontrei "${rua}" no mapa dentro de ${cp}. A rua pode ter outro nome oficial — corrige-a ou põe as coordenadas à mão.`;
+  }
+  return {coord:null, erro:motivo};
+}
+
+async function geocode(morada){
+  const r=await geocodeExplicado(morada);
+  return r.coord;
+}
+
+function dist(a,b){
+  const R=6371, dLat=(b.lat-a.lat)*Math.PI/180, dLon=(b.lon-a.lon)*Math.PI/180;
+  const s=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));
+}
+
+// ---------- Otimização ----------
+async function otimizar(){
+  const baseTxt=document.getElementById('baseInput').value.trim();
+  const status=document.getElementById('otimStatus');
+  const btn=document.getElementById('btnOtim');
+  const validos=pacotes.filter(p=>p.morada);
+
+  if(!baseTxt && !baseFixada){
+    status.style.display='block'; status.className='scan-status erro';
+    status.textContent='Define o ponto de partida — escreve a morada ou usa a tua localização.'; return;
+  }
+  if(validos.length<2){
+    status.style.display='block'; status.className='scan-status erro';
+    status.textContent='Precisas de pelo menos 2 pacotes com morada.'; return;
+  }
+
+  btn.disabled=true; btn.textContent='A calcular…';
+  document.getElementById('progWrap').style.display='block';
+  status.style.display='block'; status.className='scan-status';
+  const bar=document.getElementById('progBar');
+  const total=validos.length+1; let feito=0;
+  const passo=()=>{ feito++; bar.style.width=Math.round(feito/total*100)+'%'; };
+
+  try{
+    // --- base ---
+    if(!baseFixada || !baseCoord){
+      status.textContent='A localizar o ponto de partida…';
+      const rb=await geocodeExplicado(baseTxt);
+      if(!rb.coord) throw new Error('Não encontrei o ponto de partida: '+rb.erro);
+      baseCoord=rb.coord;
+    }
+    passo();
+
+    // --- pacotes (as coordenadas manuais são respeitadas: não se refazem) ---
+    for(const p of validos){
+      if(p.lat==null && p.via!=='coordenadas manuais'){
+        status.textContent=`A localizar moradas… (${feito}/${total})`;
+        const r=await geocodeExplicado(p.morada);
+        if(r.coord){ p.lat=r.coord.lat; p.lon=r.coord.lon; p.via=r.via;
+                     p.aproximado=!!r.aproximado; p.aviso=r.aviso||null; p.falha=null; }
+        else { p.falha=r.erro; }
+      }
+      passo();
+    }
+
+    const geo=validos.filter(p=>p.lat!=null);
+    if(geo.length<1){
+      throw new Error('Não localizei nenhuma morada. Corrige-as em baixo — podes editar a morada ou pôr as coordenadas à mão.');
+    }
+
+    // --- AGRUPAR: pacotes na mesma morada = UMA paragem ---
+    const grupos={};
+    geo.forEach(p=>{
+      const k=chaveMorada(p.morada);
+      if(!grupos[k]) grupos[k]={lat:p.lat, lon:p.lon, morada:p.morada, pacotes:[]};
+      grupos[k].pacotes.push(p);
+    });
+    const paragens=Object.values(grupos);
+    paragens.forEach(g=>g.pacotes.sort((a,b)=>a.nPacote-b.nPacote));
+
+    if(paragens.length<2){
+      // uma só paragem: nada a otimizar, mas é válido
+      paragens.forEach(g=>{ g.ordem=1; g.pacotes.forEach(p=>{ p.ordem=1; }); });
+      mostrarRota(paragens, geo.length, validos.length);
+      atualizarFalhas();
+      const f1=validos.filter(p=>p.falha);
+      document.getElementById('btnRecalc').style.display = f1.length?'block':'none';
+      status.style.display='none';
+      return;
+    }
+
+    // --- vizinho mais próximo + 2-opt, sobre as PARAGENS ---
+    let restantes=[...paragens], rota=[], atual=baseCoord;
+    while(restantes.length){
+      let iMin=0, dMin=Infinity;
+      restantes.forEach((g,k)=>{ const d=dist(atual,g); if(d<dMin){dMin=d;iMin=k;} });
+      atual=restantes[iMin]; rota.push(atual); restantes.splice(iMin,1);
+    }
+    rota=doisOpt(rota, baseCoord);
+    rota.forEach((g,k)=>{
+      g.ordem=k+1;
+      g.pacotes.forEach(p=>{ p.ordem=k+1; });
+    });
+
+    mostrarRota(rota, geo.length, validos.length);
+    atualizarFalhas(); renderPendentes();
+    salvarTrabalho();
+    const falhas=validos.filter(p=>p.falha);
+    document.getElementById('btnRecalc').style.display = falhas.length ? 'block' : 'none';
+    if(!falhas.length) status.style.display='none';
+    else { status.className='scan-status erro';
+           status.textContent=`Rota calculada com ${geo.length} paragens. ${falhas.length} ficaram de fora — corrige em baixo e recalcula.`; }
+  }catch(e){
+    status.className='scan-status erro'; status.textContent=e.message;
+    atualizarFalhas();
+    document.getElementById('btnRecalc').style.display='block';
+  }finally{
+    btn.disabled=false; btn.textContent='Calcular melhor ordem';
+    setTimeout(()=>document.getElementById('progWrap').style.display='none',600);
+  }
+}
+
+// Falhas: mostra o motivo E deixa corrigir (morada ou coordenadas), depois recalcular
+function htmlFalha(p){
+  const i=pacotes.indexOf(p);
+  return `<div class="falha" id="fa${i}">
+    <div class="falha-n">${p.nPacote||'?'}</div>
+    <div class="falha-i">
+      <div class="falha-m">${p.morada}</div>
+      <div class="falha-r">⚠ ${p.falha||'não localizada'}</div>
+      <div class="dupla">
+        <button class="btn mini" onclick="editarFalha(${i})">✏️ Corrigir morada</button>
+        <button class="btn mini sec" onclick="coordFalha(${i})">📍 Pôr coordenadas</button>
+      </div>
+
+      <div class="fx" id="fm${i}" style="display:none">
+        <label class="campo">Morada correta</label>
+        <textarea id="fmt${i}">${p.morada||''}</textarea>
+        <div class="dupla">
+          <button class="btn mini" onclick="salvarFalhaMorada(${i})">Guardar</button>
+          <button class="btn mini sec" onclick="fecharFalha(${i})">Cancelar</button>
+        </div>
+      </div>
+
+      <div class="fx" id="fc${i}" style="display:none">
+        <label class="campo">Coordenadas (latitude, longitude)</label>
+        <input id="fct${i}" placeholder="41.69323, -8.83287" value="${p.lat!=null?p.lat+', '+p.lon:''}">
+        <div class="fdica">Abre o Google Maps, mantém o dedo no local exato e copia os números que aparecem.</div>
+        <div class="dupla">
+          <button class="btn mini" onclick="salvarFalhaCoord(${i})">Guardar</button>
+          <button class="btn mini sec" onclick="fecharFalha(${i})">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function editarFalha(i){
+  document.getElementById('fc'+i).style.display='none';
+  const e=document.getElementById('fm'+i);
+  e.style.display='block';
+  document.getElementById('fmt'+i).focus();
+}
+function coordFalha(i){
+  document.getElementById('fm'+i).style.display='none';
+  const e=document.getElementById('fc'+i);
+  e.style.display='block';
+  document.getElementById('fct'+i).focus();
+}
+function fecharFalha(i){
+  document.getElementById('fm'+i).style.display='none';
+  document.getElementById('fc'+i).style.display='none';
+}
+function salvarFalhaMorada(i){
+  const v=document.getElementById('fmt'+i).value.trim();
+  if(!v) return;
+  pacotes[i].morada=v;
+  pacotes[i].lat=null; pacotes[i].lon=null;      // força nova busca no mapa
+  pacotes[i].falha=null; pacotes[i].aviso=null;
+  (pacotes[i].codes||[]).forEach(c=>{ referencia[c]=v; });
+  renderLista();
+  marcarPendente('Morada corrigida — recalcula a rota.');
+  atualizarFalhas();
+}
+function salvarFalhaCoord(i){
+  const t=document.getElementById('fct'+i).value.trim();
+  const m=t.match(/(-?\d+[.,]\d+)\s*[,;\s]\s*(-?\d+[.,]\d+)/);
+  if(!m){
+    erroPopup('Coordenadas inválidas','Escreve no formato: 41.69323, -8.83287 (latitude primeiro).',null);
+    return;
+  }
+  const lat=parseFloat(m[1].replace(',','.')), lon=parseFloat(m[2].replace(',','.'));
+  if(lat<36 || lat>43 || lon<-10 || lon>-6){
+    if(!confirm('Estas coordenadas ficam fora de Portugal continental. Usar mesmo assim?')) return;
+  }
+  pacotes[i].lat=lat; pacotes[i].lon=lon;
+  pacotes[i].falha=null;
+  pacotes[i].via='coordenadas manuais'; pacotes[i].aproximado=false;
+  pacotes[i].aviso=null;
+  marcarPendente('Coordenadas guardadas — recalcula a rota.');
+  atualizarFalhas();
+}
+
+// avisa que a rota está desatualizada e mostra o botão de recalcular
+function marcarPendente(msg){
+  pacotes.forEach(p=>{ p.ordem=null; });
+  const b=document.getElementById('btnRecalc');
+  if(b){ b.style.display='block'; }
+  const st=document.getElementById('otimStatus');
+  if(st && msg){ st.style.display='block'; st.className='scan-status'; st.textContent=msg; }
+}
+
+function atualizarFalhas(){
+  const box=document.getElementById('falhasBox');
+  if(!box) return;
+  // FALHA = o mapa foi consultado e disse que não (p.falha).
+  // Quem ainda não foi consultado (lat==null sem falha) NÃO é erro — é só pendente.
+  const falhas=pacotes.filter(p=>p.morada && p.falha);
+  if(!falhas.length){
+    const comMorada=pacotes.filter(p=>p.morada);
+    const localizados=comMorada.filter(p=>p.lat!=null);
+    // só mostra o ✓ se já houve geocodificação; antes disso, nada
+    box.innerHTML = (comMorada.length && localizados.length===comMorada.length)
+      ? '<div class="val ok">✓ Todas as moradas estão no mapa.</div>' : '';
+    return;
+  }
+  box.innerHTML=`<div class="val warn"><b>${falhas.length} morada(s) fora do mapa</b><br>
+    Corrige a morada, ou mete as coordenadas à mão. Depois recalcula.</div>`
+    + falhas.map(htmlFalha).join('');
+}
+function mostrarFalhas(){ atualizarFalhas(); }
+function mostrarFalhasAnexo(){ atualizarFalhas(); }
+
+function comprimento(rota, base){
+  let d=dist(base,rota[0]);
+  for(let i=0;i<rota.length-1;i++) d+=dist(rota[i],rota[i+1]);
+  return d;
+}
+function doisOpt(rota, base){
+  let melhor=rota, melhorou=true;
+  while(melhorou){
+    melhorou=false;
+    for(let i=0;i<melhor.length-1;i++){
+      for(let k=i+1;k<melhor.length;k++){
+        const nova=melhor.slice(0,i).concat(melhor.slice(i,k+1).reverse(), melhor.slice(k+1));
+        if(comprimento(nova,base)<comprimento(melhor,base)-1e-6){ melhor=nova; melhorou=true; }
+      }
+    }
+  }
+  return melhor;
+}
+function mostrarRota(paragens, geoN, totalN){
+  rotaParagens = paragens;
+  // reordena os pacotes: pela ordem da paragem, depois pelo nº do pacote
+  const ordenados=[];
+  paragens.forEach(g=>g.pacotes.forEach(p=>ordenados.push(p)));
+  const resto=pacotes.filter(p=>!ordenados.includes(p));
+  pacotes=[...ordenados, ...resto];
+  renderRota(geoN, totalN);
+  renderLista();
+}
+
+let rotaParagens=[];
+
+function renderRota(geoN, totalN){
+  const box=document.getElementById('otimResult');
+  if(!box) return;
+  if(!rotaParagens.length || !rotaParagens.some(g=>g.ordem)){ box.innerHTML=''; return; }
+  const baseTxt=document.getElementById('baseInput').value.trim();
+  const nPac = rotaParagens.reduce((s,g)=>s+g.pacotes.length,0);
+  const juntos = rotaParagens.filter(g=>g.pacotes.length>1).length;
+
+  let html=`<div class="resumo" style="margin:14px 0">
+    <span class="chip">${rotaParagens.length} paragens</span>
+    <span class="chip">${nPac} pacotes</span>
+    ${juntos?`<span class="chip">${juntos} com vários pacotes</span>`:''}
+    ${(totalN&&geoN<totalN)?`<span class="chip aviso">${totalN-geoN} fora do mapa</span>`:''}
+  </div>`;
+
+  html+=`<div class="otim-item base"><span class="ord">🏠</span><div class="info">
+    <div class="mor">Base / partida</div><div class="cod">${baseTxt||'—'}</div></div></div>`;
+
+  rotaParagens.sort((a,b)=>a.ordem-b.ordem).forEach(g=>{
+    const i=pacotes.indexOf(g.pacotes[0]);
+    const nums=g.pacotes.map(p=>p.nPacote);
+    const chips=nums.map(n=>`<span class="pacchip">📦 ${n}</span>`).join(' ');
+    const aviso=g.pacotes.find(p=>p.aviso);
+    html+=`<div class="otim-item ${g.pacotes.length>1?'multi':''}">
+      <span class="ord">${g.ordem}</span>
+      <div class="info">
+        <div class="mor">${g.morada}</div>
+        <div class="cod">${chips}${g.pacotes.length>1?` <b style="color:#C24B24">← ${nums.length} pacotes juntos</b>`:''}</div>
+        ${aviso?`<div class="aviso-mor">⚠ ${aviso.aviso}</div>`:''}
+        <div class="mapas">
+          <button class="mapbtn g" onclick="abrirMapa(${i},'google')">Google Maps</button>
+          <button class="mapbtn a" onclick="abrirMapa(${i},'apple')">Apple Maps</button>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  const comGeo=rotaParagens.filter(g=>g.lat!=null);
+  if(comGeo.length){
+    const origem=encodeURIComponent(baseTxt+', Portugal');
+    const pts=comGeo.map(g=>`${g.lat},${g.lon}`);
+    const destino=pts[pts.length-1];
+    const way=pts.slice(0,-1).join('|');
+    const maps=`https://www.google.com/maps/dir/?api=1&origin=${origem}&destination=${destino}&waypoints=${encodeURIComponent(way)}&travelmode=driving`;
+    html+=`<a class="link-maps" href="${maps}" target="_blank">Abrir a rota toda no Google Maps ↗</a>`;
+  }
+  box.innerHTML=html;
+}
+
+// ---------- Exportar ----------
+function partirMorada(m){
+  const re=/(\d{4}-\d{3})/;
+  const match=m.match(re);
+  if(match){
+    const cp=match[1];
+    const idx=m.indexOf(cp);
+    const antes=m.slice(0,idx).replace(/[,;]\s*$/,'').trim();
+    let depois=m.slice(idx+cp.length).replace(/^[,;]\s*/,'').trim();
+    // sem cidade escrita? usa a que a base dos CTT deu para este código postal
+    if(!depois) depois = cacheCidadeCP[cp] || '';
+    return {linha1:antes, cidade:depois, cp};
+  }
+  return {linha1:m.trim(), cidade:'', cp:''};
+}
+
+// ---------- Nome de ficheiro (convenção entrega_dia_X_mes) ----------
+function nomeBase(){
+  const h=new Date();
+  const meses=['janeiro','fevereiro','marco','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  return `entrega_dia_${h.getDate()}_${meses[h.getMonth()]}`;
+}
+
+// ---------- PDF (folha de rota para iPhone) ----------
+function linhaPDF(m){
+  const {linha1,cidade,cp}=partirMorada(m);
+  // Rua, Freguesia/Cidade, Código Postal — numa linha só
+  return [linha1, cidade, cp].filter(Boolean).join(', ');
+}
+// agrupa os pacotes por morada, na ordem da rota
+function paragensParaExportar(){
+  const com=pacotes.filter(p=>p.morada);
+  const grupos=[]; const idx={};
+  com.forEach(p=>{
+    const k=chaveMorada(p.morada);
+    if(idx[k]===undefined){ idx[k]=grupos.length; grupos.push({morada:p.morada, ordem:p.ordem, pacotes:[]}); }
+    grupos[idx[k]].pacotes.push(p);
+  });
+  grupos.forEach(g=>g.pacotes.sort((a,b)=>a.nPacote-b.nPacote));
+  grupos.sort((a,b)=>(a.ordem||999)-(b.ordem||999));
+  return grupos;
+}
+
+function exportPDF(){
+  const grupos=paragensParaExportar();
+  if(!grupos.length){ mostraExp('Sem moradas para exportar.',true); return; }
+  const { jsPDF } = window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const nome=nomeBase();
+  const otimizado=grupos.some(g=>g.ordem);
+  const base=document.getElementById('baseInput').value.trim();
+  const nPac=grupos.reduce((s,g)=>s+g.pacotes.length,0);
+
+  const cabeca={fillColor:[27,94,32],textColor:255,fontStyle:'bold',fontSize:10,halign:'left'};
+  const AMARELO=[255,241,118], AMBAR=[249,168,37];
+  const corpo={font:'helvetica',fontSize:9,cellPadding:2,overflow:'ellipsize',
+               textColor:[20,38,26],lineColor:[211,228,213],lineWidth:.2};
+  const alt={fillColor:[232,245,233]};
+  const destacar=(col)=>({
+    didParseCell:(d)=>{
+      if(d.column.index!==col) return;
+      if(d.section==='head'){ d.cell.styles.fillColor=AMBAR; d.cell.styles.textColor=[40,30,0]; d.cell.styles.halign='center'; }
+      else { d.cell.styles.fillColor=AMARELO; d.cell.styles.textColor=[40,30,0]; d.cell.styles.fontStyle='bold'; }
+    }
+  });
+  const pacsDe=g=>g.pacotes.map(p=>p.nPacote).join(', ');
+
+  // ===== PÁGINA 1 — FOLHA DE ROTA (uma linha por paragem) =====
+  doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(27,94,32);
+  doc.text('Folha de rota — '+nome.replace(/_/g,' '), 14, 16);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(107,122,110);
+  doc.text(`${grupos.length} paragens · ${nPac} pacotes · ${otimizado?'ordem otimizada':'ordem de captura'}${base?' · partida: '+base:''}`, 14, 21.5);
+  doc.setFontSize(8);
+  doc.text('Nº = paragem · Pac. = número(s) escrito(s) no(s) pacote(s) dessa morada', 14, 25.8);
+
+  doc.autoTable({
+    startY:29,
+    head:[['Nº','Pac.','Endereço']],
+    body: grupos.map((g,i)=>[String(i+1), pacsDe(g), linhaPDF(g.morada)]),
+    theme:'grid', styles:corpo, headStyles:cabeca, alternateRowStyles:alt,
+    columnStyles:{
+      0:{cellWidth:13,halign:'center',fontStyle:'bold'},
+      1:{cellWidth:20,halign:'center',fontStyle:'bold',fontSize:10},
+      2:{cellWidth:149}
+    },
+    margin:{left:14,right:14},
+    ...destacar(1)
+  });
+
+  // ===== PÁGINA 2 — MAPA DE CARGA =====
+  doc.addPage();
+  doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(27,94,32);
+  doc.text('Mapa de carga — ORDEM DE CARREGAMENTO DO CARRO', 14, 16);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(107,122,110);
+  doc.text('A tabela está na ordem em que os pacotes ENTRAM no carro (de cima para baixo):', 14, 21.5);
+  doc.text('a 1ª linha entra primeiro (vai ao fundo) e a última linha entra por fim (fica à porta, é a 1ª entrega).', 14, 25.8);
+
+  // ORDEM DECRESCENTE: última paragem primeiro = primeiro pacote a carregar
+  const carga=[...grupos].reverse();
+
+  doc.autoTable({
+    startY: 30,
+    head:[['Carrega','Paragem','Pacotes','Endereço']],
+    body: carga.map((g,i)=>[String(i+1)+'º', String(grupos.indexOf(g)+1), pacsDe(g), linhaPDF(g.morada)]),
+    theme:'grid', styles:corpo, headStyles:cabeca, alternateRowStyles:alt,
+    columnStyles:{
+      0:{cellWidth:18,halign:'center',fontStyle:'bold'},
+      1:{cellWidth:18,halign:'center'},
+      2:{cellWidth:22,halign:'center',fontStyle:'bold',fontSize:11},
+      3:{cellWidth:124}
+    },
+    margin:{left:14,right:14},
+    ...destacar(2)
+  });
+
+  // ===== PÁGINA 3 — ÍNDICE POR PACOTE =====
+  doc.addPage();
+  doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(27,94,32);
+  doc.text('Índice por pacote', 14, 16);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(107,122,110);
+  doc.text('Tens um pacote na mão? Procura pelo número e vê em que paragem entra.', 14, 21.5);
+
+  const linhasIdx=[];
+  grupos.forEach((g,i)=>{
+    g.pacotes.forEach(p=>{
+      const outros=g.pacotes.filter(x=>x!==p).map(x=>x.nPacote);
+      linhasIdx.push([String(p.nPacote), String(i+1),
+        linhaPDF(g.morada) + (outros.length?`  [com o(s) nº ${outros.join(', ')}]`:'')]);
+    });
+  });
+  linhasIdx.sort((a,b)=>(+a[0])-(+b[0]));
+
+  doc.autoTable({
+    startY:26,
+    head:[['Pacote','Paragem','Endereço']],
+    body: linhasIdx,
+    theme:'grid', styles:corpo, headStyles:cabeca, alternateRowStyles:alt,
+    columnStyles:{
+      0:{cellWidth:20,halign:'center',fontStyle:'bold',fontSize:11},
+      1:{cellWidth:20,halign:'center',fontStyle:'bold'},
+      2:{cellWidth:142}
+    },
+    margin:{left:14,right:14},
+    ...destacar(0)
+  });
+
+  doc.save(nome+'.pdf');
+  mostraExp(`✓ ${nome}.pdf — ${grupos.length} paragens, ${nPac} pacotes.`,false);
+}
+
+function exportCSV(){
+  const comMorada=pacotes.filter(p=>p.morada);
+  if(!comMorada.length){ mostraExp('Sem moradas para exportar.',true); return; }
+  let linhas=['Address Line 1,City,Zip/Postal Code,ID'];
+  const grupos=paragensParaExportar();
+  grupos.forEach((g,i)=>{
+    const {linha1,cidade,cp}=partirMorada(g.morada);
+    const id=i+1;
+    const nps=g.pacotes.map(p=>p.nPacote).join(',');
+    const a1=`${id}: ${linha1} [pac ${nps}]`.replace(/"/g,'""');
+    linhas.push(`"${a1}","${cidade.replace(/"/g,'""')}","${cp}",${id}`);
+  });
+  const blob=new Blob([linhas.join('\n')],{type:'text/csv;charset=utf-8'});
+  const nome=nomeBase()+'.csv';
+  baixar(blob,nome);
+  mostraExp(`✓ ${nome} — ${paragensParaExportar().length} paragens, ${comMorada.length} pacotes.`,false);
+}
+function copiarLista(){
+  const txt=pacotes.filter(p=>p.morada).map((p,i)=>`${i+1}. ${p.morada}`).join('\n');
+  if(!txt){ mostraExp('Sem moradas para copiar.',true); return; }
+  navigator.clipboard.writeText(txt).then(()=>mostraExp('✓ Lista copiada.',false))
+    .catch(()=>mostraExp('Não consegui copiar automaticamente.',true));
+}
+function baixar(blob,nome){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=nome; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function mostraExp(msg,erro){
+  const s=document.getElementById('expStatus');
+  s.style.display='block'; s.className='scan-status'+(erro?' erro':''); s.textContent=msg;
+}
+function resumoExport(){
+  const com=pacotes.filter(p=>p.morada).length, sem=pacotes.length-com;
+  const ord=pacotes.some(p=>p.ordem);
+  document.getElementById('expResumo').innerHTML=
+    `<span class="chip">${com} paragens</span>`+
+    (sem?`<span class="chip aviso">${sem} sem morada</span>`:'')+
+    (ord?`<span class="chip">rota otimizada ✓</span>`:'<span class="chip aviso">sem otimizar</span>');
+}
+
+// avisa se não estamos em contexto seguro (câmara bloqueada)
+if(!window.isSecureContext || location.protocol==='file:'){
+  erroPopup('A câmara não funciona assim',
+    'Abriste o ficheiro direto (file://). Os navegadores só dão acesso à câmara em páginas https://. Publica no GitHub Pages e abre por esse link.','seguro');
+  estado('Câmara bloqueada — abre a página por https://', true);
+} else {
+  aquecerOCR();   // pré-carrega o motor para a 1ª leitura ser rápida
+  estado('Carrega em ▶ Iniciar captura para começar.');
+}
+renderPre();
+verificarTrabalho();
+</script>
+</body>
+</html>
