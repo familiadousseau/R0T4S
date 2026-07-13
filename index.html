@@ -881,6 +881,7 @@ async function lerPreEcra(){
   const cvsCod=document.createElement('canvas');
   const ctxCod=cvsCod.getContext('2d',{willReadFrequently:true});
   (async ()=>{
+    if(!detCodigo) await garantirDetector();     // insiste até o leitor existir
     if(!detCodigo) return;
     let tenta=0;
     while(__preLendo && !codLido){
@@ -897,6 +898,9 @@ async function lerPreEcra(){
               codLido=vals[0]; viaCod='barras/QR';
               codExtra=vals[1]||'';               // barras E QR no mesmo ecrã: guarda os dois
               if(navigator.vibrate) navigator.vibrate(40);
+              // aparece JÁ no campo, sem esperar pela morada
+              document.getElementById('preCod').value = codExtra ? codLido+' | '+codExtra : codLido;
+              estado('✓ Código '+codLido+' (barras/QR) — agora a morada…');
               // repetido? amarelo IMEDIATO, sem esperar o OCR terminar
               const pre=encontrarPre(codLido);
               const dono=pre?null:pacoteComCodigo(codLido);
@@ -912,6 +916,9 @@ async function lerPreEcra(){
   })();
 
   try{
+    // dá meio segundo de dianteira ao leitor de códigos antes de o OCR consumir CPU
+    await new Promise(r=>setTimeout(r,500));
+    if(codLido && duplicado) return;
     if(!ocrPronto) await aquecerOCR();
 
     while(__preModo && __preLendo){
@@ -935,7 +942,7 @@ async function lerPreEcra(){
         }
       }
 
-      if(norm && !codLido && Date.now()-inicio > (detCodigo?4000:0)){
+      if(norm && !codLido && Date.now()-inicio > ((detCodigo||__detPronto)?6000:0)){
         const r=codigoDoEcra(norm);
         if(r && (r.forte || Date.now()-inicio>8000)){
           codLido=r.cod; viaCod=r.via;
@@ -1398,6 +1405,28 @@ async function lerDestinatario(){
 // ================= MODO AUTOMÁTICO: DOIS CICLOS INDEPENDENTES =================
 let autoOn=false, detCodigo=null, achadoMor=null;
 
+// ---- O LEITOR DE CÓDIGOS É PRIORIDADE ABSOLUTA ----
+// Criado no arranque da app (não à espera do botão) e com re-tentativa enquanto
+// a biblioteca não carregar. Nunca pode ficar indisponível e deixar o OCR ocupar o lugar dele.
+let __detPronto=null;
+async function garantirDetector(){
+  if(detCodigo) return detCodigo;
+  if(__detPronto) return __detPronto;      // já há uma criação em curso: não duplica
+  __detPronto=(async()=>{
+    for(let t=0; t<40; t++){               // até ~12s à espera do ZXing (só na 1ª vez)
+      const d=await criarDetector();
+      if(d){ detCodigo=d; __detPronto=null; return d; }
+      await new Promise(r=>setTimeout(r,300));
+    }
+    __detPronto=null;
+    return null;
+  })();
+  return __detPronto;
+}
+// arranca já, mal a app abre — quando carregares em Iniciar, ele está pronto
+garantirDetector();
+
+
 function alternarAuto(){ autoOn ? pararAuto('Parado.') : arrancarAuto(); }
 
 async function arrancarAuto(){
@@ -1423,16 +1452,18 @@ async function arrancarAuto(){
   pista('pCod',false); pista('pCP',false); pista('pRua',false); pista('pDest',false);
   estado('A ler — aponta à etiqueta.');
 
-  if(!detCodigo){
-    detCodigo=await criarDetector();
-    if(!detCodigo){
+  // 1º e imediato: o ciclo de códigos. NÃO espera pelo OCR nem pelo detetor —
+  // se o detetor ainda não existir, o próprio ciclo insiste até o ter.
+  cicloCodigos();
+
+  // depois, em paralelo, o OCR para a morada
+  aquecerOCR().then(()=>{ if(autoOn) cicloOCR(); });
+
+  garantirDetector().then(d=>{
+    if(!d && autoOn){
       erroPopup('Não consigo ler códigos','As bibliotecas de leitura não carregaram — precisa de internet na primeira utilização. Podes escrever os códigos à mão em "Corrigir".','semdet');
     }
-  }
-
-  // OS DOIS CICLOS ARRANCAM EM PARALELO — não esperam um pelo outro
-  cicloCodigos();
-  aquecerOCR().then(()=>{ if(autoOn) cicloOCR(); });
+  });
 }
 
 function pararAuto(msg){
@@ -1448,8 +1479,14 @@ function estado(t,erro){ const s=document.getElementById('capStatus'); if(!s) re
 
 // --- CICLO 1: códigos (QR + barras). Rápido, independente do OCR. ---
 async function cicloCodigos(){
-  if(!detCodigo) return;
   const v=document.getElementById('cam');
+  // se o detetor ainda não estiver pronto, espera por ele — mas não morre
+  if(!detCodigo){
+    estado('A preparar o leitor de códigos…');
+    await garantirDetector();
+    if(!detCodigo) return;
+    if(autoOn) estado('A ler — aponta à etiqueta.');
+  }
   const c=document.createElement('canvas');
   const ctx=c.getContext('2d',{willReadFrequently:true});
   while(autoOn){
@@ -1542,7 +1579,8 @@ async function cicloOCR(){
 // --- quando os dois ciclos já deram o que era preciso ---
 function verificarCompleto(){
   if(!autoOn || !achadoMor) return;
-  if(!capCodigos.length && detCodigo) return;   // ainda falta o código
+  // o CÓDIGO manda: enquanto houver (ou estiver a nascer) um leitor, espera-se por ele.
+  if(!capCodigos.length && (detCodigo || __detPronto)) return;
   pararAuto('');
   mostrarCam(false);
   abrirConfirmacao();
