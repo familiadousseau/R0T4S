@@ -233,6 +233,9 @@
   .mapa-leg{display:flex;gap:14px;padding:8px 12px;font-size:11px;color:var(--cinza);border-top:1px solid var(--linha);flex-wrap:wrap}
   .mapa-leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle}
   .pin-ok{background:#1B5E20}.pin-conf{background:#F9A825}.pin-base{background:#1565C0}
+  .pop{font-size:13px;line-height:1.4;min-width:190px}
+  .pop-m{color:#2E3A30}
+  .pop-t{width:100%;box-sizing:border-box;font-size:15px;border:1px solid var(--linha);border-radius:8px;padding:6px;margin:6px 0}
   .pino{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50% 50% 50% 0;
         transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);font-weight:800;font-size:13px;color:#fff}
   .pino span{transform:rotate(45deg)}
@@ -2831,6 +2834,71 @@ function atualizarGeoChip(){
 // ================= MAPA INTERATIVO DAS PARAGENS =================
 let __mapa=null, __marcas=[], __linha=null, __marcaBase=null;
 
+
+// conteúdo do popup de uma paragem (modo ver + modo editar)
+function popupParagem(g){
+  const nums=g.pacotes.map(p=>p.nPacote).join(', ');
+  const aprox=g.pacotes.some(p=>p.aproximado);
+  return `<div class="pop">
+    <b>${g.ordem?('Paragem '+g.ordem):('Pacote '+nums)}</b><br>
+    <span class="pop-m">${g.morada}</span><br>
+    <span style="color:#6B7A6E">📦 pacote(s) ${nums}</span>
+    ${aprox?'<br><b style="color:#C24B24">⚠ a confirmar — posição aproximada</b>':''}
+    <div class="pop-ed" style="display:none">
+      <textarea class="pop-t" rows="3">${g.morada}</textarea>
+      <div class="dupla">
+        <button class="btn mini pop-guardar">Guardar</button>
+        <button class="btn mini sec pop-cancelar">Cancelar</button>
+      </div>
+    </div>
+    <div class="dupla" style="margin-top:6px">
+      <button class="btn mini pop-editar">✏️ Editar morada</button>
+    </div>
+    <small style="color:#8A9A8E">ou arrasta o pino no mapa</small>
+  </div>`;
+}
+
+// liga os botões do popup por referência DIRETA ao elemento (à prova de Leaflet)
+function ligarPopup(popup, g, marcador){
+  const el=popup.getElement();
+  if(!el) return;
+  const ed=el.querySelector('.pop-ed');
+  const bloco=el.querySelector('.pop-editar').parentElement;
+  el.querySelector('.pop-editar').onclick=()=>{
+    ed.style.display='block'; bloco.style.display='none';
+    el.querySelector('.pop-t').focus();
+  };
+  el.querySelector('.pop-cancelar').onclick=()=>{
+    ed.style.display='none'; bloco.style.display='flex';
+    el.querySelector('.pop-t').value=g.morada;
+  };
+  el.querySelector('.pop-guardar').onclick=()=>{
+    const v=el.querySelector('.pop-t').value.trim();
+    if(v.length<6) return;
+    const mudou = chaveMorada(v)!==chaveMorada(g.morada);
+    g.morada=v;
+    g.pacotes.forEach(p=>{
+      p.morada=v;
+      (p.codes||[]).forEach(c=>{ referencia[c]=v; });
+      if(mudou){ p.lat=null; p.lon=null; p.via=null; p.aproximado=false; p.aviso=null; p.falha=null; }
+    });
+    marcador.closePopup();
+    if(mudou){
+      // morada mudou → reordenar deixa de ser válido; relocaliza em fundo
+      g.pacotes.forEach(p=>pedirGeoPacote(p));
+      if(pacotes.some(p=>p.ordem)){
+        pacotes.forEach(p=>{ p.ordem=null; }); rotaParagens=[];
+        const br=document.getElementById('btnRecalc'); if(br) br.style.display='block';
+      }
+      estadoMapa('✓ Morada alterada. A localizar a nova posição… recalcula a rota quando quiseres.');
+    }
+    renderRota(); renderPendentes(); renderOrdem(); renderLista();
+    atualizarFalhas(); salvarTrabalho();
+    desenharMapa();
+  };
+}
+
+
 function iconePino(txt, tipo){
   return L.divIcon({
     className:'', iconSize:[30,30], iconAnchor:[15,30], popupAnchor:[0,-28],
@@ -2960,11 +3028,9 @@ async function desenharMapa(){
     }).addTo(__mapa);
 
     const nums=g.pacotes.map(p=>p.nPacote).join(', ');
-    m.bindPopup(
-      `<b>${g.ordem?('Paragem '+g.ordem):('Pacote '+nums)}</b><br>${g.morada}<br>
-       <span style="color:#6B7A6E">📦 pacote(s) ${nums}</span>
-       ${aprox?'<br><b style="color:#C24B24">⚠ a confirmar — posição aproximada</b>':''}
-       <br><small>Arrasta o pino para corrigir.</small>`);
+    m.__g=g;
+    m.bindPopup(popupParagem(g), {minWidth:210});
+    m.on('popupopen', ev=>ligarPopup(ev.popup, g, m));
 
     m.on('dragend', e=>{
       const ll=e.target.getLatLng();
