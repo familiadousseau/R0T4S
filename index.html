@@ -262,7 +262,7 @@
   .mapa-t{font-weight:800;font-size:13px;color:var(--verde)}
   .mapa-d{font-size:11px;color:var(--cinza)}
   .mapa-r{border:1px solid var(--verde-mid);background:var(--cartao);border-radius:8px;padding:2px 8px;font-size:13px;color:var(--verde);cursor:pointer;margin-left:6px}
-  #mapa{height:340px;width:100%}
+  #mapa{height:340px;width:100%;background:var(--cartao2)}
   .mapa-leg{display:flex;gap:14px;padding:8px 12px;font-size:11px;color:var(--cinza);border-top:1px solid var(--linha);flex-wrap:wrap}
   .mapa-leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle}
   .pin-ok{background:#1B5E20}.pin-conf{background:#F9A825}.pin-base{background:#1565C0}
@@ -580,7 +580,7 @@
     <div class="resumo" id="expResumo" style="margin-top:14px"></div>
   </section>
 </div>
-<div class="credito">Elaborado por Renan Guimarães · v15.01-escuro</div>
+<div class="credito">Elaborado por Renan Guimarães · v15.02-mapa</div>
 </main>
 
 <nav>
@@ -2991,6 +2991,42 @@ function ligarPopup(popup, g, marcador){
 }
 
 
+
+// fundo do mapa com recurso: se o OpenStreetMap falhar, troca para o servidor CARTO
+let __tiles=null, __tilesErros=0, __tilesFonte=0;
+const FONTES_TILES=[
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'
+];
+function ligarAzulejos(){
+  if(__tiles){ try{ __mapa.removeLayer(__tiles); }catch(e){} }
+  __tilesErros=0;
+  __tiles=L.tileLayer(FONTES_TILES[__tilesFonte], {maxZoom:19});
+  __tiles.on('tileerror', ()=>{
+    __tilesErros++;
+    if(__tilesErros===4 && __tilesFonte===0){
+      __tilesFonte=1;                       // OSM em baixo → troca para o CARTO
+      estadoMapa('O fundo do OpenStreetMap falhou — a trocar para o servidor alternativo…');
+      ligarAzulejos();
+    }else if(__tilesErros===4){
+      estadoMapa('Os fundos do mapa não estão a carregar (rede fraca?). Os pinos e a rota continuam a funcionar — toca ↻ quando tiveres rede.', true);
+    }
+  });
+  __tiles.addTo(__mapa);
+}
+
+// diagnóstico: se após 5s nenhum azulejo carregou, avisa em vez de deixar o quadrado mudo
+function vigiarMapa(){
+  setTimeout(()=>{
+    const bloco=document.getElementById('mapaBloco');
+    if(!bloco || bloco.style.display==='none' || !__mapa) return;
+    const carregado=document.querySelector('#mapa .leaflet-tile-loaded');
+    if(!carregado){
+      estadoMapa('O fundo do mapa ainda não carregou. Verifica a internet e toca ↻. Os pinos funcionam na mesma.', true);
+    }
+  }, 5000);
+}
+
 function iconePino(txt, tipo){
   return L.divIcon({
     className:'', iconSize:[30,30], iconAnchor:[15,30], popupAnchor:[0,-28],
@@ -3098,7 +3134,7 @@ async function desenharMapa(){
 
   if(!__mapa){
     __mapa=L.map('mapa', {zoomControl:true, attributionControl:false});
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(__mapa);
+    ligarAzulejos();
   }
 
   __marcas.forEach(m=>__mapa.removeLayer(m)); __marcas=[];
@@ -3152,6 +3188,7 @@ async function desenharMapa(){
   __mapa.fitBounds(L.latLngBounds(pts).pad(0.15));
   setTimeout(()=>__mapa.invalidateSize(), 150);   // o mapa nasce escondido: força o redesenho
   setTimeout(()=>__mapa.invalidateSize(), 500);   // 2ª vez, depois do CSS assentar
+  vigiarMapa();
 
   const aConf=paragens.filter(g=>g.pacotes.some(p=>p.aproximado)).length;
   if(aConf) estadoMapa(`⚠ ${aConf} paragem(ns) a confirmar (amarelo) — a posição é aproximada. Arrasta o pino para o sítio certo.`, true);
