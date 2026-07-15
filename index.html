@@ -2838,6 +2838,32 @@ function iconePino(txt, tipo){
   });
 }
 
+
+// o mapa fica um quadrado branco se o CSS do Leaflet não estiver aplicado.
+// isto verifica se está mesmo carregado (não só a etiqueta <link> presente).
+function cssLeafletPronto(){
+  // o Leaflet define .leaflet-container com position:relative — testamo-lo de facto
+  const t=document.createElement('div');
+  t.className='leaflet-container';
+  t.style.cssText='position:absolute;visibility:hidden';
+  document.body.appendChild(t);
+  const pos=getComputedStyle(t).position;
+  document.body.removeChild(t);
+  return pos==='relative';
+}
+function carregarCssLeaflet(){
+  return new Promise(res=>{
+    // remove qualquer link partido e recarrega com cache-busting
+    document.querySelectorAll('link[href*="leaflet"]').forEach(l=>l.remove());
+    const l=document.createElement('link');
+    l.rel='stylesheet';
+    l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css?r='+Date.now();
+    l.onload=()=>res(true); l.onerror=()=>res(false);
+    document.head.appendChild(l);
+    setTimeout(()=>res(false), 5000);
+  });
+}
+
 let __leafATentar=false;
 async function garantirLeaflet(){
   if(window.L) return true;
@@ -2880,7 +2906,7 @@ async function desenharMapa(){
   const comMorada=pacotes.filter(p=>p.morada).length;
   if(!paragens.length){
     if(!comMorada){
-      estadoMapa('🗺️ Captura ou pré-atribui pacotes e os pontos aparecem sozinhos.');
+      estadoMapa('🗺️ O mapa fica aqui. Captura ou pré-atribui pacotes e os pontos aparecem sozinhos.');
       return;
     }
     // há moradas mas ainda nenhuma localizada
@@ -2895,9 +2921,16 @@ async function desenharMapa(){
     estadoMapa('A carregar o mapa…');
     const ok=await garantirLeaflet();
     if(!ok){
-      estadoMapa('O mapa não conseguiu carregar (biblioteca bloqueada ou sem internet). A rota funciona na mesma — volta a esta aba para tentar de novo.', true);
+      estadoMapa('O mapa não conseguiu carregar (sem internet, ou o serviço de mapas está bloqueado). A rota funciona na mesma — toca em ↻ para tentar de novo.', true);
       return;
     }
+    document.getElementById('mapaStatus').style.display='none';
+  }
+  // o JS pode carregar mas o CSS não (quadrado branco): garante o CSS ANTES de criar o mapa
+  if(!cssLeafletPronto()){
+    estadoMapa('A carregar o estilo do mapa…');
+    await carregarCssLeaflet();
+    await new Promise(r=>setTimeout(r,200));   // deixa o CSS assentar
     document.getElementById('mapaStatus').style.display='none';
   }
 
@@ -2959,7 +2992,8 @@ async function desenharMapa(){
   const pts=paragens.map(g=>[g.lat,g.lon]);
   if(baseCoord) pts.push([baseCoord.lat, baseCoord.lon]);
   __mapa.fitBounds(L.latLngBounds(pts).pad(0.15));
-  setTimeout(()=>__mapa.invalidateSize(), 120);   // o mapa nasce escondido: força o redesenho
+  setTimeout(()=>__mapa.invalidateSize(), 150);   // o mapa nasce escondido: força o redesenho
+  setTimeout(()=>__mapa.invalidateSize(), 500);   // 2ª vez, depois do CSS assentar
 
   const aConf=paragens.filter(g=>g.pacotes.some(p=>p.aproximado)).length;
   if(aConf) estadoMapa(`⚠ ${aConf} paragem(ns) a confirmar (amarelo) — a posição é aproximada. Arrasta o pino para o sítio certo.`, true);
