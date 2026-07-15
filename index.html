@@ -2180,8 +2180,7 @@ async function sugerirEscrita(troco){
   const seq=++__escSeq;
   const box=document.getElementById('acEscrever');
   try{
-    let res=await nominatimPerto(troco, __posAtual);
-    if(!res.length) res=await nominatimLivre(troco);
+    let res=await buscarMapa(troco, __posAtual, false);
     if(seq!==__escSeq) return;
     if(!res.length){ box.innerHTML='<div class="ac-carregando">Nada encontrado — continua a escrever.</div>'; return; }
     box.innerHTML=res.slice(0,5).map(x=>{
@@ -2725,6 +2724,39 @@ if(navigator.geolocation){
   navigator.geolocation.getCurrentPosition(
     p=>{ __posAtual={lat:p.coords.latitude, lon:p.coords.longitude}; },
     ()=>{}, {enableHighAccuracy:false, timeout:8000, maximumAge:600000});
+}
+
+
+// Photon (Komoot) — motor gratuito, sem chave. Reforça o Nominatim.
+async function photon(q, pos){
+  const p=new URLSearchParams({q, limit:'6', lang:'pt'});
+  if(pos){ p.set('lat', pos.lat); p.set('lon', pos.lon); }
+  const r=await fetch('https://photon.komoot.io/api/?'+p.toString());
+  if(!r.ok) throw new Error('photon '+r.status);
+  const d=await r.json();
+  return (d.features||[]).map(f=>{
+    const c=f.geometry&&f.geometry.coordinates;
+    const pr=f.properties||{};
+    return {
+      lat: c?c[1]:null, lon: c?c[0]:null,
+      address:{ postcode: pr.postcode||'', country_code:(pr.countrycode||'').toLowerCase() },
+      display_name:[pr.name, pr.street, pr.city, pr.state, pr.country].filter(Boolean).join(', ')
+    };
+  }).filter(x=>x.lat!=null);
+}
+
+// pesquisa combinada: Nominatim + Photon, resultados juntos (mais hipóteses de acerto)
+async function buscarMapa(q, pos, soPT){
+  let out=[];
+  try{ out=await nominatimLivre(q, soPT?'pt':null); }catch(e){}
+  if(out.length<3){
+    try{
+      let ph=await photon(q, pos);
+      if(soPT) ph=ph.filter(x=>!x.address.country_code || x.address.country_code==='pt');
+      out=out.concat(ph);
+    }catch(e){}
+  }
+  return out;
 }
 
 async function nominatimPerto(q, pos){
@@ -3283,8 +3315,7 @@ async function sugerirBase(v){
   const box=document.getElementById('acLista');
   try{
     // prioriza a zona onde o utilizador ESTÁ (se a posição for conhecida), senão Portugal inteiro
-    let res=await nominatimPerto(v, __posAtual);
-    if(!res.length){ res=await nominatimLivre(v); }
+    let res=await buscarMapa(v, __posAtual, false);
     if(seq!==__acSeq) return;   // já há uma busca mais recente
     if(!res.length){
       box.innerHTML='<div class="ac-carregando">Nada encontrado — continua a escrever ou usa o 📍.</div>';
@@ -3381,7 +3412,7 @@ function salvarGeoCache(){
   }catch(e){}
 }
 
-const RAIO_MAX_KM = 7;
+const RAIO_MAX_KM = 12;
 const cacheCP = {};
 
 async function infoCP(cp){
@@ -3443,14 +3474,20 @@ function escolher(lista, cp, centro){
       cpIgual: cpRes===cp,
       cpZona: cpRes.slice(0,4)===cp.slice(0,4)};
   });
+  // código postal idêntico: aceita mesmo que o centro dos CTT diga o contrário
   let m=cand.find(c=>c.cpIgual);
-  if(m && (m.d==null || m.d<=RAIO_MAX_KM)) return {coord:m.coord, confianca:'exata'};
+  if(m) return {coord:m.coord, confianca:'exata'};
+  // mesma zona (4 primeiros dígitos) dentro do raio
   m=cand.find(c=>c.cpZona && (c.d==null || c.d<=RAIO_MAX_KM));
   if(m) return {coord:m.coord, confianca:'zona'};
+  // qualquer candidato dentro do raio, o mais próximo
   m=cand.filter(c=>c.d!=null && c.d<=RAIO_MAX_KM).sort((a,b)=>a.d-b.d)[0];
   if(m) return {coord:m.coord, confianca:'proximidade'};
+  // nada dentro do raio: devolve a melhor tentativa para a rede de segurança decidir
   const perto=cand.filter(c=>c.d!=null).sort((a,b)=>a.d-b.d)[0];
-  return {coord:null, rejeitado:true, distancia: perto?Math.round(perto.d):null};
+  return {coord:null, rejeitado:true,
+          melhorCoord: perto?perto.coord:(cand[0]?cand[0].coord:null),
+          distancia: perto?Math.round(perto.d):null};
 }
 
 async function geocodeExplicado(morada){
@@ -3481,74 +3518,81 @@ async function geocodeExplicado(morada){
     return {coord:null, erro:'não encontrei esta morada. Escreve-a completa, com cidade e país (ou código postal português NNNN-NNN, se for em Portugal).'};
   }
 
-  // 1) zona de referência do código postal
+  // 1) zona de referência do CP (se a GeoAPI responder — mas já não dependemos dela)
   const info=await infoCP(cp);
   const centro = info && info.centro ? info.centro : null;
   const freguesia = info ? info.freguesia : '';
   const concelho  = info ? (info.concelho || info.localidade) : '';
 
-  // 2) buscas LIVRES, da mais específica à mais geral
-  //    (com o CP no texto, e depois com freguesia/concelho reais dos CTT)
+  // 2) buscas da mais específica à mais geral, em DOIS motores (Nominatim + Photon)
   const buscas=[
-    `${rua}, ${cp} ${freguesia||''}, Portugal`,
-    freguesia ? `${rua}, ${freguesia}, ${concelho}, Portugal` : null,
+    `${rua}, ${cp}, Portugal`,
+    freguesia ? `${rua}, ${freguesia}, ${concelho}, Portugal` : `${rua}, ${cp} Portugal`,
     concelho  ? `${rua}, ${concelho}, Portugal` : `${rua}, Portugal`,
-    concelho && semNumero!==rua ? `${semNumero}, ${concelho}, Portugal` : null,
-    freguesia && semNumero ? `${semNumero}, ${freguesia}, Portugal` : null
+    semNumero!==rua ? `${semNumero}, ${cp}, Portugal` : null,
+    (semNumero!==rua && concelho) ? `${semNumero}, ${concelho}, Portugal` : null
   ].filter(Boolean);
 
-  let rejeitadoLonge=null;
+  let melhorAprox=null;   // guarda a melhor tentativa, mesmo que "longe", para não desistir
+
   for(let k=0;k<buscas.length;k++){
-    try{
-      const lista=await nominatimLivre(buscas[k], 'pt');
-      const r=escolher(lista, cp, centro);
-      if(r && r.coord){
-        {const __r={coord:r.coord,
-                via: k===0?'morada com código postal':'rua + '+(freguesia||concelho),
-                confianca:r.confianca,
-                aproximado: r.confianca==='proximidade'}; geoCache[ck]={coord:__r.coord, via:__r.via, confianca:__r.confianca, aproximado:!!__r.aproximado, aviso:__r.aviso||null}; salvarGeoCache(); return __r;}
-      }
-      if(r && r.rejeitado && r.distancia!=null) rejeitadoLonge=r.distancia;
-    }catch(e){
-      return {coord:null, erro:'O serviço de mapas não respondeu: '+e.message};
+    let lista=[];
+    try{ lista=await buscarMapa(buscas[k], __posAtual, true); }catch(e){}
+    const r=escolher(lista, cp, centro);
+
+    if(r && r.coord){
+      const __r={coord:r.coord,
+        via: k===0?'morada + código postal':'rua + '+(freguesia||concelho||'zona'),
+        aproximado: r.confianca==='proximidade' || !centro,
+        aviso: (!centro && r.confianca!=='exata') ? 'Confirma esta paragem no mapa.' : null};
+      geoCache[ck]={coord:__r.coord, via:__r.via, aproximado:__r.aproximado, aviso:__r.aviso};
+      salvarGeoCache(); return __r;
     }
-    await new Promise(r=>setTimeout(r,1100));
+    // sem validação por centro (GeoAPI em baixo): aceita a 1ª correspondência do mapa
+    if(!centro && lista.length){
+      const x=lista[0];
+      const __r={coord:{lat:parseFloat(x.lat), lon:parseFloat(x.lon)},
+        via:'melhor correspondência', aproximado:true,
+        aviso:'Validação do código postal indisponível — confirma no mapa.'};
+      geoCache[ck]={coord:__r.coord, via:__r.via, aproximado:true, aviso:__r.aviso};
+      salvarGeoCache(); return __r;
+    }
+    // guarda a tentativa mais próxima do centro, ainda que fora do raio
+    if(r && r.rejeitado && r.melhorCoord && (melhorAprox==null || r.distancia<melhorAprox.d)){
+      melhorAprox={coord:r.melhorCoord, d:r.distancia};
+    }
+    await new Promise(s=>setTimeout(s, 900));
   }
 
-  // 3) rede de segurança: centro do código postal (cidade certa garantida)
+  // 3) rede de segurança 1: centro do código postal (cidade certa garantida)
   if(centro){
-    {const __r={coord:centro, via:'centro do código postal '+cp, aproximado:true,
-            aviso:`Não encontrei "${rua}" no mapa. Usei o centro de ${cp}${freguesia?' ('+freguesia+')':''} — confere a rua ao chegar perto.`}; geoCache[ck]={coord:__r.coord, via:__r.via, confianca:__r.confianca, aproximado:!!__r.aproximado, aviso:__r.aviso||null}; salvarGeoCache(); return __r;}
+    const __r={coord:centro, via:'centro do código postal '+cp, aproximado:true,
+      aviso:`Não encontrei a rua exata. Ponto no centro de ${cp}${freguesia?' ('+freguesia+')':''} — arrasta no mapa para a porta certa.`};
+    geoCache[ck]={coord:__r.coord, via:__r.via, aproximado:true, aviso:__r.aviso};
+    salvarGeoCache(); return __r;
   }
 
-  // GeoAPI limitada/indisponível (sem centro): aceita a melhor correspondência do mapa,
-  // marcada "a confirmar" — o utilizador vê-a a amarelo no mapa e pode arrastá-la
-  if(!centro){
-    try{
-      const lista=await nominatimLivre(`${rua}, ${cp}, Portugal`, 'pt');
-      if(lista && lista.length){
-        const x=lista[0];
-        const __r={coord:{lat:parseFloat(x.lat), lon:parseFloat(x.lon)},
-                   via:'melhor correspondência', aproximado:true,
-                   aviso:'Validação do código postal indisponível — confirma esta paragem no mapa.'};
-        geoCache[ck]={coord:__r.coord, via:__r.via, aproximado:true, aviso:__r.aviso};
-        salvarGeoCache();
-        return __r;
-      }
-    }catch(e){}
+  // 4) rede de segurança 2: a rua foi encontrada mas "longe" do CP — usa-a na mesma, a confirmar
+  if(melhorAprox){
+    const __r={coord:melhorAprox.coord, via:'aproximada', aproximado:true,
+      aviso:`Posição aproximada (${melhorAprox.d} km do código postal). Confirma no mapa.`};
+    geoCache[ck]={coord:__r.coord, via:__r.via, aproximado:true, aviso:__r.aviso};
+    salvarGeoCache(); return __r;
   }
 
-  let motivo;
-  if(rejeitadoLonge!=null){
-    motivo=`encontrei "${rua}", mas a ${rejeitadoLonge} km do código postal ${cp} — é outra cidade. Rejeitei. Confere a rua ou o código postal.`;
-  }else if(!info){
-    motivo=`o código postal ${cp} não existe na base dos CTT — confere-o. Podes também pôr as coordenadas à mão.`;
-  }else{
-    motivo=`não encontrei "${rua}" no mapa dentro de ${cp}. A rua pode ter outro nome oficial — corrige-a ou põe as coordenadas à mão.`;
-  }
-  return {coord:null, erro:motivo};
+  // 5) rede de segurança 3: só a localidade do CP (via Photon), para nunca dar erro seco
+  try{
+    const loc=await photon(cp+', Portugal', __posAtual);
+    if(loc.length){
+      const __r={coord:{lat:loc[0].lat, lon:loc[0].lon}, via:'zona do código postal', aproximado:true,
+        aviso:'Só consegui localizar a zona do código postal. Arrasta no mapa para a morada certa.'};
+      geoCache[ck]={coord:__r.coord, via:__r.via, aproximado:true, aviso:__r.aviso};
+      salvarGeoCache(); return __r;
+    }
+  }catch(e){}
+
+  return {coord:null, erro:`não consegui localizar "${rua}" (${cp}). Corrige a morada ou põe as coordenadas à mão.`};
 }
-
 async function geocode(morada){
   const r=await geocodeExplicado(morada);
   return r.coord;
