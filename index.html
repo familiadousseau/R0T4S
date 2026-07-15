@@ -16,7 +16,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -222,6 +224,25 @@
   .dit-item textarea{flex:1;min-height:44px;border:1px solid var(--linha);border-radius:8px;padding:8px;font-size:14px;font-family:inherit}
   .dit-item .rm{margin-top:8px}
   .btn.gravando{background:var(--alerta)}
+  .mapa-bloco{margin:14px 0;border:1.5px solid var(--verde-mid);border-radius:var(--raio);overflow:hidden;background:#fff}
+  .mapa-cab{display:flex;justify-content:space-between;align-items:baseline;padding:10px 12px;background:var(--verde-claro)}
+  .mapa-t{font-weight:800;font-size:13px;color:var(--verde)}
+  .mapa-d{font-size:11px;color:var(--cinza)}
+  .mapa-r{border:1px solid var(--verde-mid);background:#fff;border-radius:8px;padding:2px 8px;font-size:13px;color:var(--verde);cursor:pointer;margin-left:6px}
+  #mapa{height:340px;width:100%}
+  .mapa-leg{display:flex;gap:14px;padding:8px 12px;font-size:11px;color:var(--cinza);border-top:1px solid var(--linha);flex-wrap:wrap}
+  .mapa-leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .pin-ok{background:#1B5E20}.pin-conf{background:#F9A825}.pin-base{background:#1565C0}
+  .pino{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50% 50% 50% 0;
+        transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);font-weight:800;font-size:13px;color:#fff}
+  .pino span{transform:rotate(45deg)}
+  .pino.ok{background:#1B5E20}.pino.conf{background:#F9A825;color:#3E2C00}.pino.base{background:#1565C0;border-radius:50%;transform:none}
+  .pino.base span{transform:none}
+  .ord-item{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--linha);border-radius:10px;padding:8px 10px;margin-bottom:6px}
+  .ord-item .oh{cursor:grab;font-size:18px;color:var(--cinza);touch-action:none}
+  .ord-item.arrastando{opacity:.5;border-color:var(--verde)}
+  .ord-item .om{flex:1;font-size:13px;line-height:1.35;min-width:0}
+  .ord-item .on{width:26px;height:26px;border-radius:50%;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex:none}
   .ac-wrap{position:relative}
   .ac-lista{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--verde-mid);border-radius:12px;margin-top:4px;z-index:40;box-shadow:0 8px 24px rgba(0,0,0,.14);overflow:hidden;max-height:240px;overflow-y:auto}
   .ac-item{padding:11px 13px;font-size:13px;line-height:1.4;cursor:pointer;border-bottom:1px solid var(--linha);color:var(--tinta)}
@@ -266,6 +287,7 @@
   .pre-t{font-weight:800;font-size:14px;color:var(--verde);margin-bottom:4px}
   .pre-item{display:flex;gap:8px;align-items:flex-start;background:var(--verde-claro);border:1px solid var(--verde-mid);border-radius:10px;padding:9px 10px;margin-bottom:7px}
   .pre-item .pi{flex:1;min-width:0}
+  .pre-ed{margin-top:8px;background:#fff;border:1px solid var(--linha);border-radius:10px;padding:10px}
   .pre-item .pc{font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:var(--verde)}
   .pre-item .pm{font-size:13px;color:var(--tinta);line-height:1.35}
   .mf-pre{background:#1B5E20;color:#fff;border-radius:12px;padding:10px;font-size:13px;font-weight:700;margin-bottom:12px}
@@ -479,8 +501,25 @@
     <button class="btn" id="btnOtim" onclick="otimizar()">Calcular melhor ordem</button>
     <div class="prog" id="progWrap" style="display:none"><div id="progBar"></div></div>
     <div class="scan-status" id="otimStatus" style="display:none"></div>
+    <div style="text-align:center;margin:4px 0 8px"><span class="chip" id="geoChip" style="display:none"></span></div>
     <button class="btn" id="btnRecalc" onclick="otimizar()" style="display:none">🔄 Recalcular rota</button>
     <div id="falhasBox"></div>
+
+    <div class="mapa-bloco" id="mapaBloco" style="display:none">
+      <div class="mapa-cab">
+        <span class="mapa-t" id="mapaTitulo">🗺️ Mapa das paragens</span>
+        <span class="mapa-d">arrasta um pino para corrigir <button class="mapa-r" onclick="desenharMapa()">↻</button></span>
+      </div>
+      <div id="mapa"></div>
+      <div class="mapa-leg">
+        <span><i class="pin-ok"></i> confirmada</span>
+        <span><i class="pin-conf"></i> a confirmar</span>
+        <span><i class="pin-base"></i> base</span>
+      </div>
+      <div class="scan-status" id="mapaStatus" style="display:none"></div>
+    </div>
+
+    <div id="ordemBox"></div>
     <div id="pendBox"></div>
     <div id="otimResult"></div>
   </section>
@@ -504,7 +543,7 @@
     <div class="resumo" id="expResumo" style="margin-top:14px"></div>
   </section>
 </div>
-<div class="credito">Elaborado por Renan Guimarães</div>
+<div class="credito">Elaborado por Renan Guimarães · v14.07-A</div>
 </main>
 
 <nav>
@@ -745,8 +784,22 @@ function renderPre(){
   if(res) res.innerHTML = n ? `<span class="chip">${n} pré-atribuídos à espera de bip</span>` : '';
   const box=document.getElementById('preItens');
   if(box) box.innerHTML = preAtribuidos.map((x,i)=>`
-    <div class="pre-item">
-      <div class="pi"><div class="pc">${x.cod}${x.cod2?' · '+x.cod2:''}</div><div class="pm">${x.morada}</div></div>
+    <div class="pre-item" id="pri${i}">
+      <div class="pi">
+        <div class="pc">${x.cod}${x.cod2?' · '+x.cod2:''}${x.lat!=null?' <span style="color:#1B5E20">📍</span>':''}</div>
+        <div class="pm">${x.morada}</div>
+        <div class="pre-ed" id="pred${i}" style="display:none">
+          <label class="campo">Código</label>
+          <input id="predc${i}" value="${x.cod}${x.cod2?' | '+x.cod2:''}">
+          <label class="campo" style="margin-top:6px">Morada</label>
+          <textarea id="predm${i}" rows="2">${x.morada}</textarea>
+          <div class="dupla">
+            <button class="btn mini" onclick="salvarPreEd(${i})">Guardar</button>
+            <button class="btn mini sec" onclick="fecharPreEd(${i})">Cancelar</button>
+          </div>
+        </div>
+      </div>
+      <button class="ed" onclick="abrirPreEd(${i})">✏️</button>
       <button class="rm" onclick="preAtribuidos.splice(${i},1);salvarPreLista();renderPre()">×</button>
     </div>`).join('');
   const bl=document.getElementById('btnPreLista');
@@ -764,7 +817,9 @@ function juntarPre(){
   if(!mor || mor.length<6){ estado('Escreve a morada.',true); return; }
   if(preAtribuidos.some(x=>x.cod===cod || x.cod2===cod || (cod2 && (x.cod===cod2||x.cod2===cod2)))){ estado('Esse código já está na pré-lista.',true); return; }
   if(pacoteComCodigo(cod) || (cod2 && pacoteComCodigo(cod2))){ estado('Esse código já é um pacote capturado.',true); return; }
-  preAtribuidos.push({cod, cod2, morada:mor});
+  const __novoPre={cod, cod2, morada:mor};
+  preAtribuidos.push(__novoPre);
+  pedirGeoPre(__novoPre);   // começa a localizar já, em fundo
   salvarPreLista(); renderPre();
   document.getElementById('preCod').value='';
   document.getElementById('preMor').value='';
@@ -883,13 +938,18 @@ async function lerPreEcra(){
   (async ()=>{
     if(!detCodigo) await garantirDetector();     // insiste até o leitor existir
     if(!detCodigo) return;
+    const direto=!!detCodigo.aceitaVideo;
     let tenta=0;
     while(__preLendo && !codLido){
       try{
         if(vCam.videoWidth){
-          desenharFrame(vCam, cvsCod, ctxCod);
-          // ecrãs têm brilho e moiré: alterna o frame normal com uma versão contrastada
-          const alvo = (tenta++ % 2 === 0) ? cvsCod : contrastar(cvsCod);
+          let alvo;
+          if(direto && (tenta++ % 4 !== 3)){
+            alvo=vCam;                        // rápido: lê o vídeo direto (sem cópia)
+          }else{
+            desenharFrame(vCam, cvsCod, ctxCod);
+            alvo = (tenta % 4 === 3) ? contrastar(cvsCod) : cvsCod;   // 1 em 4: contraste (ecrãs)
+          }
           const r=await detCodigo.detect(alvo);
           if(r && r.length){
             const vals=[...new Set(r.map(x=>(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,''))
@@ -911,7 +971,7 @@ async function lerPreEcra(){
           }
         }
       }catch(e){}
-      await new Promise(r=>setTimeout(r, __motorCod==='zxing' ? 60 : 90));
+      await new Promise(r=>setTimeout(r, direto ? 25 : (__motorCod==='zxing' ? 60 : 80)));
     }
   })();
 
@@ -999,7 +1059,11 @@ function preParaLista(){
     if(pacoteComCodigo(x.cod)) return;   // já existe na lista
     const nP=pacotes.length+1;
     const cs=[x.cod, x.cod2].filter(Boolean);
-    pacotes.push({nPacote:nP, codes:cs, code:cs[0], morada:x.morada, lat:null, lon:null, ordem:null});
+    const __pp={nPacote:nP, codes:cs, code:cs[0], morada:x.morada,
+                lat:x.lat!=null?x.lat:null, lon:x.lon!=null?x.lon:null,
+                via:x.via||null, aproximado:!!x.aproximado, aviso:x.aviso||null, ordem:null};
+    pacotes.push(__pp);
+    if(__pp.lat==null) pedirGeoPacote(__pp);
     cs.forEach(c=>{ referencia[c]=x.morada; });
     const ta=document.getElementById('refInput');
     if(ta) ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+cs.join(' | ')+'; '+x.morada;
@@ -1029,6 +1093,38 @@ function avisoJaExiste(titulo, grande, morada, cods){
   if(navigator.vibrate) navigator.vibrate(120);
 }
 
+
+// editar um pré-atribuído (código e/ou morada)
+function abrirPreEd(i){
+  document.getElementById('pred'+i).style.display='block';
+  document.getElementById('predm'+i).focus();
+}
+function fecharPreEd(i){ document.getElementById('pred'+i).style.display='none'; }
+function salvarPreEd(i){
+  const x=preAtribuidos[i];
+  const bruto=document.getElementById('predc'+i).value.trim().toUpperCase();
+  const cods=bruto.split('|').map(c=>c.replace(/\s+/g,'')).filter(c=>c.length>=4);
+  const mor=document.getElementById('predm'+i).value.trim();
+  if(!cods[0]){ estado('O código não pode ficar vazio.',true); return; }
+  if(!mor || mor.length<6){ estado('A morada não pode ficar vazia.',true); return; }
+  // conflito com OUTRO item ou com a Lista?
+  const conflito=preAtribuidos.some((y,j)=> j!==i &&
+    (y.cod===cods[0] || y.cod2===cods[0] || (cods[1] && (y.cod===cods[1]||y.cod2===cods[1]))));
+  if(conflito || pacoteComCodigo(cods[0]) || (cods[1] && pacoteComCodigo(cods[1]))){
+    estado('Esse código já existe noutro pacote.',true); return;
+  }
+  x.cod=cods[0]; x.cod2=cods[1]||'';
+  if(chaveMorada(mor)!==chaveMorada(x.morada)){
+    x.morada=mor;
+    x.lat=null; x.lon=null; x.via=null; x.aproximado=false; x.aviso=null;
+    pedirGeoPre(x);                        // morada mudou → localiza de novo em fundo
+  }else{
+    x.morada=mor;
+  }
+  salvarPreLista(); renderPre();
+  estado('✓ Pré-atribuído atualizado.');
+}
+
 // no galpão: este código bate com algum pré-atribuído?
 function encontrarPre(v){
   if(!v || v.length<6) return null;
@@ -1045,7 +1141,11 @@ function confirmarPre(pre, valLido){
   const irmaos=pacotes.filter(p=>chaveMorada(p.morada)===chaveMorada(pre.morada));
 
   const nPacote=pacotes.length+1;
-  pacotes.push({nPacote, codes:cods, code:cods[0], morada:pre.morada, lat:null, lon:null, ordem:null});
+  const __p={nPacote, codes:cods, code:cods[0], morada:pre.morada,
+             lat:pre.lat!=null?pre.lat:null, lon:pre.lon!=null?pre.lon:null,
+             via:pre.via||null, aproximado:!!pre.aproximado, aviso:pre.aviso||null, ordem:null};
+  pacotes.push(__p);
+  if(__p.lat==null) pedirGeoPacote(__p);
   cods.forEach(c=>{ referencia[c]=pre.morada; });
   const ta=document.getElementById('refInput');
   if(ta) ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+cods.join(' | ')+'; '+pre.morada;
@@ -1153,7 +1253,9 @@ async function criarDetector(){
       if(usar.length){
         __motorCod='nativo';
         const d=new BarcodeDetector({formats:usar});
-        return { detect: c=>d.detect(c) };
+        // aceitaVideo: o motor nativo lê o <video> diretamente — sem copiar frames,
+        // o que elimina o maior custo do ciclo e torna a leitura praticamente instantânea
+        return { detect: c=>d.detect(c), aceitaVideo:true };
       }
     }catch(e){ /* passa ao ZXing */ }
   }
@@ -1480,64 +1582,63 @@ function estado(t,erro){ const s=document.getElementById('capStatus'); if(!s) re
 // --- CICLO 1: códigos (QR + barras). Rápido, independente do OCR. ---
 async function cicloCodigos(){
   const v=document.getElementById('cam');
-  // se o detetor ainda não estiver pronto, espera por ele — mas não morre
   if(!detCodigo){
     estado('A preparar o leitor de códigos…');
     await garantirDetector();
     if(!detCodigo) return;
     if(autoOn) estado('A ler — aponta à etiqueta.');
   }
-  const c=document.createElement('canvas');
-  const ctx=c.getContext('2d',{willReadFrequently:true});
+  // sem cópia de frames quando o motor nativo aceita o vídeo (o caminho rápido)
+  const direto = !!detCodigo.aceitaVideo;
+  const c = direto ? null : document.createElement('canvas');
+  const ctx = direto ? null : c.getContext('2d',{willReadFrequently:true});
+
   while(autoOn){
     try{
       if(v.videoWidth){
-        desenharFrame(v,c,ctx);
-        const r=await detCodigo.detect(c);
+        let alvo=v;
+        if(!direto){ desenharFrame(v,c,ctx); alvo=c; }
+        const r=await detCodigo.detect(alvo);
 
-        // 1º: código de um pacote JÁ CAPTURADO → popup amarelo IMEDIATO.
-        // Nem espera pela morada nem pelo OCR — poupa o tempo todo.
-        for(const x of r){
-          const val=(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,'');
-          const dono=pacoteComCodigo(val);
-          if(dono && !capCodigos.length && !emPausa(val)){
-            mostrarJaAtribuido(dono);   // pára os dois ciclos lá dentro
-            return;
+        if(r && r.length){
+          // 1º: pacote JÁ CAPTURADO → amarelo imediato
+          for(const x of r){
+            const val=(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,'');
+            const dono=pacoteComCodigo(val);
+            if(dono && !capCodigos.length && !emPausa(val)){
+              mostrarJaAtribuido(dono);
+              return;
+            }
           }
-        }
-
-        // 2º: código pré-atribuído → CONFIRMA na hora, sem OCR
-        for(const x of r){
-          const val=(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,'');
-          if(pacoteComCodigo(val)) continue;
-          const pre=encontrarPre(val);
-          if(pre && !capCodigos.length){
-            confirmarPre(pre, val);
-            return;
+          // 2º: pré-atribuído → confirma na hora, sem OCR
+          for(const x of r){
+            const val=(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,'');
+            if(pacoteComCodigo(val)) continue;
+            const pre=encontrarPre(val);
+            if(pre && !capCodigos.length){ confirmarPre(pre, val); return; }
           }
-        }
-
-        // 3º: códigos novos do pacote atual
-        let novo=false;
-        r.forEach(x=>{
-          const val=(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,'');
-          if(pacoteComCodigo(val)) return;   // conhecido: tratado acima ou em pausa
-          if(juntarCodigo(val, x.format)) novo=true;
-        });
-        if(novo){
-          pista('pCod',true);
-          if(capCodigos.length>=2){
-            if(navigator.vibrate) navigator.vibrate([40,40,40]);
-            estado(`✓ ${capCodigos.length} códigos (QR + barras) — agora a morada…`);
-          }else{
-            if(navigator.vibrate) navigator.vibrate(40);
-            estado('✓ 1 código — roda o pacote para o outro, ou espera pela morada…');
+          // 3º: códigos novos — GUARDA TODOS (barras E QR do mesmo pacote)
+          let novo=false;
+          r.forEach(x=>{
+            const val=(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,'');
+            if(!val || pacoteComCodigo(val)) return;
+            if(juntarCodigo(val, x.format)) novo=true;
+          });
+          if(novo){
+            pista('pCod',true);
+            if(navigator.vibrate) navigator.vibrate(capCodigos.length>=2?[40,40,40]:40);
+            const lista=capCodigos.map(x=>x.val).join(' · ');
+            estado(capCodigos.length>=2
+              ? `✓ ${capCodigos.length} códigos: ${lista} — agora a morada…`
+              : `✓ ${lista} — roda o pacote para o outro código, ou espera pela morada…`);
+            verificarCompleto();
           }
-          verificarCompleto();
         }
       }
-    }catch(e){ /* frame falhado: tenta o seguinte */ }
-    await new Promise(r=>setTimeout(r, __motorCod==='zxing' ? 60 : 90));
+    }catch(e){ /* frame falhado: segue */ }
+
+    // ritmo: nativo é praticamente instantâneo; o ZXing precisa de mais folga
+    await new Promise(r=>setTimeout(r, direto ? 25 : (__motorCod==='zxing' ? 60 : 80)));
   }
 }
 
@@ -1911,6 +2012,8 @@ function retomarTrabalho(){
   const b=document.getElementById('baseInput');
   if(b && t.base){ b.value=t.base; }
   reconstruirRota();
+  pacotes.forEach(p=>pedirGeoPacote(p));
+  preAtribuidos.forEach(x=>pedirGeoPre(x));
   renderLista(); renderScan(); atualizarBadge(); renderCapResumo();
   estado(`✓ Trabalho retomado — ${pacotes.length} pacote(s).`);
 }
@@ -2040,7 +2143,8 @@ function importarTexto(txt){
     if(cods.some(c=>pacoteComCodigo(c))) return;   // já existe
 
     const nP=pacotes.length+1;
-    pacotes.push({nPacote:nP, codes:cods, code:cods[0], morada:mor, lat:null, lon:null, ordem:null});
+    const __ip={nPacote:nP, codes:cods, code:cods[0], morada:mor, lat:null, lon:null, ordem:null};
+    pacotes.push(__ip); pedirGeoPacote(__ip);
     cods.forEach(c=>{ referencia[c]=mor; });
     n++;
   });
@@ -2261,7 +2365,8 @@ function adicionarVoz(){
     if(!mor) return;
     const n=pacotes.length+1;
     const cod='P'+n;
-    pacotes.push({nPacote:n, codes:[cod], code:cod, morada:mor, lat:null, lon:null, ordem:null});
+    const __vp={nPacote:n, codes:[cod], code:cod, morada:mor, lat:null, lon:null, ordem:null};
+    pacotes.push(__vp); pedirGeoPacote(__vp);
     referencia[cod]=mor;
     const ta=document.getElementById('refInput');
     if(ta) ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+cod+'; '+mor;
@@ -2360,6 +2465,7 @@ function salvarEdit(i){
   pacotes[i].morada=v; pacotes[i].lat=null; pacotes[i].lon=null;
   pacotes[i].falha=null; pacotes[i].aviso=null; pacotes[i].via=null;
   (pacotes[i].codes||[]).forEach(c=>{ referencia[c]=v; });
+  pedirGeoPacote(pacotes[i]);
   pacotes.forEach(p=>{ p.ordem=null; });          // a rota deixa de ser válida
   fecharEdit(i);
   renderLista(); renderScan(); atualizarBadge();
@@ -2439,7 +2545,7 @@ function ir(p){
   if(p!=='scan') pararScanner();
   if(p==='cap'){ aquecerOCR(); estado('Carrega em ▶ Iniciar captura para começar.'); } else { pararCam(); mostrarCam(false); pararAuto(); }
   if(p==='lista') renderLista(); else if(vozOn) pararVoz();
-  if(p==='otim'){ renderRota(); atualizarFalhas(); renderPendentes(); }
+  if(p==='otim'){ renderRota(); atualizarFalhas(); renderPendentes(); desenharMapa(); renderOrdem(); atualizarGeoChip(); }
   if(p==='export') resumoExport();
   if(p==='cap') renderCapResumo();
   document.querySelector("main").scrollTo(0,0);
@@ -2517,8 +2623,9 @@ async function cicloScan(){
   while(scanOn){
     try{
       if(v.videoWidth){
-        desenharFrame(v,c,ctx);
-        const r=await detScan.detect(c);
+        let alvo=v;
+        if(!detScan.aceitaVideo){ desenharFrame(v,c,ctx); alvo=c; }
+        const r=await detScan.detect(alvo);
         if(r.length && Date.now()-__ultScan>900){
           __ultScan=Date.now();
           juntarPacote(r[0].rawValue.trim().toUpperCase().replace(/\s+/g,''));
@@ -2633,6 +2740,325 @@ async function nominatimPerto(q, pos){
 
 
 
+
+
+// ================= GEOCODIFICAÇÃO EM SEGUNDO PLANO =================
+// Cada morada entra numa fila mal é registada (pré-atribuição, captura, voz, escrita, importação).
+// A fila trabalha devagar (1 consulta/segundo, a regra do serviço) enquanto tu fazes outra coisa —
+// quando chegas ao Otimizar, a maioria já está no mapa.
+const geoFila=[];
+let geoON=false;
+
+function pedirGeo(morada, aplicar){
+  if(!morada || !/\d{4}-\d{3}/.test(morada) && morada.length<10) return;
+  geoFila.push({morada, aplicar});
+  correrGeoFila();
+  atualizarGeoChip();
+}
+
+function pedirGeoPacote(p){
+  if(!p || !p.morada || p.lat!=null || p.__naFila) return;
+  if(p.via==='coordenadas manuais' || p.via==='corrigido no mapa') return;
+  p.__naFila=true;
+  const moradaNoPedido=p.morada;
+  pedirGeo(p.morada, r=>{
+    p.__naFila=false;
+    // só aplica se a morada não mudou entretanto e ninguém a fixou à mão
+    if(p.lat==null && p.morada===moradaNoPedido){
+      if(r && r.coord){
+        p.lat=r.coord.lat; p.lon=r.coord.lon; p.via=r.via;
+        p.aproximado=!!r.aproximado; p.aviso=r.aviso||null; p.falha=null;
+      }else if(r){
+        p.falha=r.erro||null;
+      }
+      salvarTrabalho();
+    }
+  });
+}
+
+function pedirGeoPre(item){
+  if(!item || item.lat!=null || item.__naFila) return;
+  item.__naFila=true;
+  const m=item.morada;
+  pedirGeo(m, r=>{
+    item.__naFila=false;
+    if(item.morada===m && r && r.coord){
+      item.lat=r.coord.lat; item.lon=r.coord.lon;
+      item.via=r.via; item.aproximado=!!r.aproximado; item.aviso=r.aviso||null;
+      salvarPreLista();
+    }
+  });
+}
+
+async function correrGeoFila(){
+  if(geoON) return;
+  geoON=true;
+  while(geoFila.length){
+    const it=geoFila.shift();
+    let r=null;
+    try{ r=await geocodeExplicado(it.morada); }catch(e){ r={coord:null, erro:e.message}; }
+    try{ it.aplicar(r); }catch(e){}
+    atualizarGeoChip();
+    if(!(r && r.cache)) await new Promise(s=>setTimeout(s,1100));   // cache = sem espera
+  }
+  geoON=false;
+  atualizarGeoChip();
+}
+
+let __mapaTimer=null;
+function mapaSePreciso(){
+  const aba=document.getElementById('p-otim');
+  if(!aba || !aba.classList.contains('ativo')) return;
+  clearTimeout(__mapaTimer);
+  __mapaTimer=setTimeout(()=>desenharMapa(), 600);
+}
+function atualizarGeoChip(){
+  mapaSePreciso();
+  const e=document.getElementById('geoChip');
+  if(!e) return;
+  const com=pacotes.filter(p=>p.morada);
+  const ok=com.filter(p=>p.lat!=null).length;
+  const pre=preAtribuidos.length;
+  const preOk=preAtribuidos.filter(x=>x.lat!=null).length;
+  if(!com.length && !pre){ e.style.display='none'; return; }
+  e.style.display='inline-block';
+  let t=`📍 ${ok}/${com.length} no mapa`;
+  if(pre) t+=` · pré: ${preOk}/${pre}`;
+  if(geoFila.length) t+=' · a localizar…';
+  e.textContent=t;
+}
+
+// ================= MAPA INTERATIVO DAS PARAGENS =================
+let __mapa=null, __marcas=[], __linha=null, __marcaBase=null;
+
+function iconePino(txt, tipo){
+  return L.divIcon({
+    className:'', iconSize:[30,30], iconAnchor:[15,30], popupAnchor:[0,-28],
+    html:`<div class="pino ${tipo}"><span>${txt}</span></div>`
+  });
+}
+
+let __leafATentar=false;
+async function garantirLeaflet(){
+  if(window.L) return true;
+  if(__leafATentar) return false;
+  __leafATentar=true;
+  await new Promise(res=>{
+    if(!document.querySelector('link[href*="leaflet"]')){
+      const l=document.createElement('link');
+      l.rel='stylesheet'; l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(l);
+    }
+    const sc=document.createElement('script');
+    sc.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    sc.onload=res; sc.onerror=res;
+    document.head.appendChild(sc);
+    setTimeout(res, 9000);
+  });
+  __leafATentar=false;
+  return !!window.L;
+}
+
+async function desenharMapa(){
+  const bloco=document.getElementById('mapaBloco');
+  // com rota: paragens ordenadas; sem rota: agrupa os pacotes já localizados pela fila
+  let paragens;
+  const temRota=rotaParagens.length>0;
+  if(temRota){
+    paragens=rotaParagens.filter(g=>g.lat!=null);
+  }else{
+    const grupos={};
+    pacotes.filter(p=>p.morada && p.lat!=null).forEach(p=>{
+      const k=chaveMorada(p.morada);
+      if(!grupos[k]) grupos[k]={lat:p.lat, lon:p.lon, morada:p.morada, ordem:null, pacotes:[]};
+      grupos[k].pacotes.push(p);
+    });
+    paragens=Object.values(grupos);
+  }
+  // a caixa do mapa está SEMPRE presente — mesmo sem morada nenhuma
+  bloco.style.display='block';
+  const comMorada=pacotes.filter(p=>p.morada).length;
+  if(!paragens.length){
+    if(!comMorada){
+      estadoMapa('🗺️ O mapa fica aqui. Captura ou pré-atribui pacotes e os pontos aparecem sozinhos.');
+      return;
+    }
+    // há moradas mas ainda nenhuma localizada
+    const ok=pacotes.filter(p=>p.morada && p.lat!=null).length;
+    estadoMapa(`📍 A localizar as moradas em segundo plano (${ok}/${comMorada})… os pontos aparecem aqui sozinhos.`);
+    return;
+  }
+
+  bloco.style.display='block';   // nunca some em silêncio
+
+  if(!window.L){
+    estadoMapa('A carregar o mapa…');
+    const ok=await garantirLeaflet();
+    if(!ok){
+      estadoMapa('O mapa não conseguiu carregar (biblioteca bloqueada ou sem internet). A rota funciona na mesma — volta a esta aba para tentar de novo.', true);
+      return;
+    }
+    document.getElementById('mapaStatus').style.display='none';
+  }
+
+  try{
+
+  if(!__mapa){
+    __mapa=L.map('mapa', {zoomControl:true, attributionControl:false});
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(__mapa);
+  }
+
+  __marcas.forEach(m=>__mapa.removeLayer(m)); __marcas=[];
+  if(__linha){ __mapa.removeLayer(__linha); __linha=null; }
+  if(__marcaBase){ __mapa.removeLayer(__marcaBase); __marcaBase=null; }
+
+  // base
+  if(baseCoord){
+    __marcaBase=L.marker([baseCoord.lat, baseCoord.lon], {icon:iconePino('🏠','base')})
+      .addTo(__mapa).bindPopup('<b>Base / partida</b>');
+  }
+
+  paragens.forEach(g=>{
+    const aprox=g.pacotes.some(p=>p.aproximado);
+    const rotulo = g.ordem || ('📦'+g.pacotes[0].nPacote);
+    const m=L.marker([g.lat, g.lon], {
+      icon: iconePino(rotulo, aprox?'conf':'ok'),
+      draggable: true, autoPan: true
+    }).addTo(__mapa);
+
+    const nums=g.pacotes.map(p=>p.nPacote).join(', ');
+    m.bindPopup(
+      `<b>${g.ordem?('Paragem '+g.ordem):('Pacote '+nums)}</b><br>${g.morada}<br>
+       <span style="color:#6B7A6E">📦 pacote(s) ${nums}</span>
+       ${aprox?'<br><b style="color:#C24B24">⚠ a confirmar — posição aproximada</b>':''}
+       <br><small>Arrasta o pino para corrigir.</small>`);
+
+    m.on('dragend', e=>{
+      const ll=e.target.getLatLng();
+      g.lat=ll.lat; g.lon=ll.lng;
+      g.pacotes.forEach(p=>{
+        p.lat=ll.lat; p.lon=ll.lng;
+        p.aproximado=false; p.aviso=null; p.falha=null;
+        p.via='corrigido no mapa';   // posição fixada à mão: não volta a ser geocodificada
+      });
+      m.setIcon(iconePino(g.ordem || ('📦'+g.pacotes[0].nPacote),'ok'));
+      linhaDaRota();
+      renderRota(); renderPendentes();
+      salvarTrabalho();
+      estadoMapa(`✓ Paragem ${g.ordem} movida. A ordem da rota não mudou — usa "Recalcular" se quiseres reotimizar.`);
+      const br=document.getElementById('btnRecalc'); if(br) br.style.display='block';
+    });
+
+    __marcas.push(m);
+  });
+
+  linhaDaRota();
+  const tit=document.getElementById('mapaTitulo');
+  if(tit) tit.textContent = temRota ? '🗺️ Mapa da rota' : '🗺️ Paragens localizadas (rota por calcular)';
+
+  const pts=paragens.map(g=>[g.lat,g.lon]);
+  if(baseCoord) pts.push([baseCoord.lat, baseCoord.lon]);
+  __mapa.fitBounds(L.latLngBounds(pts).pad(0.15));
+  setTimeout(()=>__mapa.invalidateSize(), 120);   // o mapa nasce escondido: força o redesenho
+
+  const aConf=paragens.filter(g=>g.pacotes.some(p=>p.aproximado)).length;
+  if(aConf) estadoMapa(`⚠ ${aConf} paragem(ns) a confirmar (amarelo) — a posição é aproximada. Arrasta o pino para o sítio certo.`, true);
+  else document.getElementById('mapaStatus').style.display='none';
+
+  }catch(e){
+    estadoMapa('Erro ao desenhar o mapa: '+e.message, true);
+  }
+}
+
+function linhaDaRota(){
+  if(__linha){ __mapa.removeLayer(__linha); __linha=null; }
+  const pts=[];
+  if(baseCoord) pts.push([baseCoord.lat, baseCoord.lon]);
+  [...rotaParagens].filter(g=>g.lat!=null).sort((a,b)=>a.ordem-b.ordem)
+    .forEach(g=>pts.push([g.lat,g.lon]));
+  if(pts.length>1){
+    __linha=L.polyline(pts, {color:'#1B5E20', weight:3, opacity:.65, dashArray:'6 6'}).addTo(__mapa);
+  }
+}
+
+function estadoMapa(msg, aviso){
+  const e=document.getElementById('mapaStatus');
+  if(!e) return;
+  e.style.display='block';
+  e.className='scan-status'+(aviso?' erro':'');
+  e.textContent=msg;
+}
+
+// ---- reordenar paragens à mão (arrastar na lista) ----
+function renderOrdem(){
+  const box=document.getElementById('ordemBox');
+  if(!box) return;
+  if(!rotaParagens.length){ box.innerHTML=''; return; }
+  const lista=[...rotaParagens].sort((a,b)=>a.ordem-b.ordem);
+  box.innerHTML='<div class="mapa-cab" style="border-radius:10px 10px 0 0"><span class="mapa-t">↕️ Ordem das paragens</span><span class="mapa-d">arrasta para reordenar</span></div>'
+    + lista.map((g,i)=>`
+      <div class="ord-item" draggable="true" data-i="${i}"
+           ondragstart="ordDragStart(event)" ondragover="ordDragOver(event)"
+           ondrop="ordDrop(event)" ondragend="ordDragEnd(event)">
+        <span class="on">${g.ordem}</span>
+        <div class="om">${g.morada}<br><span style="color:#6B7A6E;font-size:11px">📦 ${g.pacotes.map(p=>p.nPacote).join(', ')}</span></div>
+        <span class="oh" onpointerdown="ordTouch(event,${i})">⠿</span>
+      </div>`).join('');
+}
+
+let __ordDe=null;
+function ordDragStart(e){ __ordDe=+e.currentTarget.dataset.i; e.currentTarget.classList.add('arrastando'); }
+function ordDragOver(e){ e.preventDefault(); }
+function ordDragEnd(e){ e.currentTarget.classList.remove('arrastando'); }
+function ordDrop(e){
+  e.preventDefault();
+  const para=+e.currentTarget.dataset.i;
+  if(__ordDe==null || __ordDe===para) return;
+  moverParagem(__ordDe, para);
+  __ordDe=null;
+}
+
+// toque no telemóvel: arrastar com o dedo
+function ordTouch(e, i){
+  e.preventDefault();
+  const item=e.currentTarget.closest('.ord-item');
+  item.classList.add('arrastando');
+  const mover=(ev)=>{
+    const alvo=document.elementFromPoint(ev.clientX, ev.clientY);
+    const dest=alvo && alvo.closest ? alvo.closest('.ord-item') : null;
+    if(dest && +dest.dataset.i!==i){
+      moverParagem(i, +dest.dataset.i);
+      largar();
+    }
+  };
+  const largar=()=>{
+    item.classList.remove('arrastando');
+    document.removeEventListener('pointermove', mover);
+    document.removeEventListener('pointerup', largar);
+  };
+  document.addEventListener('pointermove', mover);
+  document.addEventListener('pointerup', largar);
+}
+
+function moverParagem(de, para){
+  const lista=[...rotaParagens].sort((a,b)=>a.ordem-b.ordem);
+  const [g]=lista.splice(de,1);
+  lista.splice(para,0,g);
+  lista.forEach((x,k)=>{
+    x.ordem=k+1;
+    x.pacotes.forEach(p=>{ p.ordem=k+1; });
+  });
+  rotaParagens=lista;
+  // reordena os pacotes para os exportadores seguirem a nova ordem
+  const ord=[]; lista.forEach(x=>x.pacotes.forEach(p=>ord.push(p)));
+  const resto=pacotes.filter(p=>!ord.includes(p));
+  pacotes=[...ord, ...resto];
+  renderOrdem(); renderRota(); desenharMapa(); renderLista();
+  salvarTrabalho();
+  estadoMapa('✓ Ordem alterada à mão. O PDF e o CSV seguem esta ordem.');
+}
+
+
 // ================= MORADAS NA ABA OTIMIZAR (sempre visíveis, editáveis com sugestões) =================
 function renderPendentes(){
   const box=document.getElementById('pendBox');
@@ -2681,6 +3107,7 @@ function salvarPend(i){
   // morada mudou à mão (sem sugestão) → refazer geocodificação
   if(pacotes[i].via!=='sugestão do mapa' && chaveMorada(v)!==chaveMorada(pacotes[i].morada)){
     pacotes[i].lat=null; pacotes[i].lon=null; pacotes[i].via=null;
+    setTimeout(()=>pedirGeoPacote(pacotes[i]), 50);
   }
   pacotes[i].morada=v;
   pacotes[i].falha=null; pacotes[i].aviso=null;
@@ -2842,6 +3269,18 @@ let baseFixada=false;
 // + validação geográfica contra o centro do código postal (garante a cidade certa).
 // A busca estruturada com postalcode NNNN-NNN devolve vazio com frequência — não a usamos.
 
+
+// memória persistente: morada já localizada nunca volta à internet (nem hoje nem amanhã)
+let geoCache={};
+try{ geoCache=JSON.parse(localStorage.getItem('geoCache')||'{}'); }catch(e){}
+function salvarGeoCache(){
+  try{
+    const ks=Object.keys(geoCache);
+    if(ks.length>600) ks.slice(0, ks.length-600).forEach(k=>delete geoCache[k]);
+    localStorage.setItem('geoCache', JSON.stringify(geoCache));
+  }catch(e){}
+}
+
 const RAIO_MAX_KM = 7;
 const cacheCP = {};
 
@@ -2849,7 +3288,10 @@ async function infoCP(cp){
   if(cacheCP[cp]!==undefined) return cacheCP[cp];
   try{
     const r=await fetch(`https://json.geoapi.pt/cp/${cp}`, {headers:{'Accept':'application/json'}});
-    if(!r.ok){ cacheCP[cp]=null; return null; }
+    if(!r.ok){
+      if(r.status===404) cacheCP[cp]=null;   // só o 404 é definitivo; 429/500 = tenta mais tarde
+      return null;
+    }
     const d=await r.json();
     let centro=null;
     const c = d.centro || d.centroide || d.coordenadas;
@@ -2877,7 +3319,7 @@ async function infoCP(cp){
     const cid=[info.freguesia, info.concelho||info.localidade].filter(Boolean).join(', ');
     if(cid) cacheCidadeCP[cp]=cid;
     return info;
-  }catch(e){ cacheCP[cp]=null; return null; }
+  }catch(e){ return null; }   // falha de rede: não marca como inexistente
 }
 
 // busca LIVRE — deixa o Nominatim aplicar as heurísticas dele
@@ -2912,6 +3354,8 @@ function escolher(lista, cp, centro){
 }
 
 async function geocodeExplicado(morada){
+  const ck=chaveMorada(morada);
+  if(geoCache[ck] && geoCache[ck].coord) return Object.assign({cache:true}, geoCache[ck]);
   const cp=(morada.match(/\d{4}-\d{3}/)||[])[0];
   const rua=morada.split(',')[0].trim();
   const semNumero=rua.replace(/\s*n[ºo°]?\s*\.?\s*\d+[A-Za-z]?/gi,'').trim();
@@ -2927,9 +3371,9 @@ async function geocodeExplicado(morada){
       }
       if(lista.length){
         const x=lista[0];
-        return {coord:{lat:parseFloat(x.lat), lon:parseFloat(x.lon)},
+        {const __r={coord:{lat:parseFloat(x.lat), lon:parseFloat(x.lon)},
                 via:'pesquisa internacional', aproximado:false,
-                aviso:'Morada fora do formato português — localizada por pesquisa internacional; confirma no mapa.'};
+                aviso:'Morada fora do formato português — localizada por pesquisa internacional; confirma no mapa.'}; geoCache[ck]={coord:__r.coord, via:__r.via, confianca:__r.confianca, aproximado:!!__r.aproximado, aviso:__r.aviso||null}; salvarGeoCache(); return __r;}
       }
     }catch(e){
       return {coord:null, erro:'O serviço de mapas não respondeu: '+e.message};
@@ -2959,10 +3403,10 @@ async function geocodeExplicado(morada){
       const lista=await nominatimLivre(buscas[k], 'pt');
       const r=escolher(lista, cp, centro);
       if(r && r.coord){
-        return {coord:r.coord,
+        {const __r={coord:r.coord,
                 via: k===0?'morada com código postal':'rua + '+(freguesia||concelho),
                 confianca:r.confianca,
-                aproximado: r.confianca==='proximidade'};
+                aproximado: r.confianca==='proximidade'}; geoCache[ck]={coord:__r.coord, via:__r.via, confianca:__r.confianca, aproximado:!!__r.aproximado, aviso:__r.aviso||null}; salvarGeoCache(); return __r;}
       }
       if(r && r.rejeitado && r.distancia!=null) rejeitadoLonge=r.distancia;
     }catch(e){
@@ -2973,8 +3417,25 @@ async function geocodeExplicado(morada){
 
   // 3) rede de segurança: centro do código postal (cidade certa garantida)
   if(centro){
-    return {coord:centro, via:'centro do código postal '+cp, aproximado:true,
-            aviso:`Não encontrei "${rua}" no mapa. Usei o centro de ${cp}${freguesia?' ('+freguesia+')':''} — confere a rua ao chegar perto.`};
+    {const __r={coord:centro, via:'centro do código postal '+cp, aproximado:true,
+            aviso:`Não encontrei "${rua}" no mapa. Usei o centro de ${cp}${freguesia?' ('+freguesia+')':''} — confere a rua ao chegar perto.`}; geoCache[ck]={coord:__r.coord, via:__r.via, confianca:__r.confianca, aproximado:!!__r.aproximado, aviso:__r.aviso||null}; salvarGeoCache(); return __r;}
+  }
+
+  // GeoAPI limitada/indisponível (sem centro): aceita a melhor correspondência do mapa,
+  // marcada "a confirmar" — o utilizador vê-a a amarelo no mapa e pode arrastá-la
+  if(!centro){
+    try{
+      const lista=await nominatimLivre(`${rua}, ${cp}, Portugal`, 'pt');
+      if(lista && lista.length){
+        const x=lista[0];
+        const __r={coord:{lat:parseFloat(x.lat), lon:parseFloat(x.lon)},
+                   via:'melhor correspondência', aproximado:true,
+                   aviso:'Validação do código postal indisponível — confirma esta paragem no mapa.'};
+        geoCache[ck]={coord:__r.coord, via:__r.via, aproximado:true, aviso:__r.aviso};
+        salvarGeoCache();
+        return __r;
+      }
+    }catch(e){}
   }
 
   let motivo;
@@ -3034,11 +3495,12 @@ async function otimizar(){
 
     // --- pacotes (as coordenadas manuais são respeitadas: não se refazem) ---
     for(const p of validos){
-      if(p.lat==null && p.via!=='coordenadas manuais'){
+      if(p.lat==null && p.via!=='coordenadas manuais' && p.via!=='corrigido no mapa'){
         status.textContent=`A localizar moradas… (${feito}/${total})`;
         const r=await geocodeExplicado(p.morada);
         if(r.coord){ p.lat=r.coord.lat; p.lon=r.coord.lon; p.via=r.via;
                      p.aproximado=!!r.aproximado; p.aviso=r.aviso||null; p.falha=null; }
+        if(r && r.cache) continue;   // veio da memória: sem espera
         else { p.falha=r.erro; }
       }
       passo();
@@ -3085,6 +3547,7 @@ async function otimizar(){
 
     mostrarRota(rota, geo.length, validos.length);
     atualizarFalhas(); renderPendentes();
+    desenharMapa(); renderOrdem();
     salvarTrabalho();
     const falhas=validos.filter(p=>p.falha);
     document.getElementById('btnRecalc').style.display = falhas.length ? 'block' : 'none';
@@ -3159,6 +3622,7 @@ function salvarFalhaMorada(i){
   pacotes[i].lat=null; pacotes[i].lon=null;      // força nova busca no mapa
   pacotes[i].falha=null; pacotes[i].aviso=null;
   (pacotes[i].codes||[]).forEach(c=>{ referencia[c]=v; });
+  pedirGeoPacote(pacotes[i]);
   renderLista();
   marcarPendente('Morada corrigida — recalcula a rota.');
   atualizarFalhas();
@@ -3186,6 +3650,9 @@ function salvarFalhaCoord(i){
 // avisa que a rota está desatualizada e mostra o botão de recalcular
 function marcarPendente(msg){
   pacotes.forEach(p=>{ p.ordem=null; });
+  rotaParagens=[];
+  desenharMapa();
+  const ob=document.getElementById('ordemBox'); if(ob) ob.innerHTML='';
   const b=document.getElementById('btnRecalc');
   if(b){ b.style.display='block'; }
   const st=document.getElementById('otimStatus');
@@ -3494,6 +3961,7 @@ if(!window.isSecureContext || location.protocol==='file:'){
   estado('Carrega em ▶ Iniciar captura para começar.');
 }
 renderPre();
+preAtribuidos.forEach(x=>pedirGeoPre(x));
 verificarTrabalho();
 </script>
 <script>
