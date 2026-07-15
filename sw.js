@@ -2,7 +2,7 @@
 // Estratégia: a página vem sempre da REDE primeiro (para as atualizações chegarem logo),
 // com recurso à cópia guardada se estiveres offline. As bibliotecas (Tesseract, ZXing,
 // jsPDF…) ficam em cache depois da primeira utilização, para arranques rápidos.
-const CACHE = 'r0t4s-v2';
+const CACHE = 'r0t4s-v3';
 const BASE = ['./index.html', './icon-192.png', './icon-512.png', './icon-180.png'];
 
 self.addEventListener('install', e => {
