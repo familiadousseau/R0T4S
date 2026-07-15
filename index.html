@@ -275,6 +275,14 @@
   .pino.ok{background:#1B5E20}.pino.conf{background:#F9A825;color:#3E2C00}.pino.base{background:#1565C0;border-radius:50%;transform:none}
   .pino.base span{transform:none}
   .ord-item{display:flex;align-items:center;gap:8px;background:var(--cartao);border:1px solid var(--linha);border-radius:10px;padding:8px 10px;margin-bottom:6px}
+  .otim-item, .otim-item *{user-select:none;-webkit-user-select:none}
+  .otim-item textarea{user-select:text;-webkit-user-select:text}
+  .rt-acoes{display:flex;flex-direction:column;align-items:center;gap:10px;flex:none}
+  .rt-acoes .oh{cursor:grab;font-size:20px;color:var(--cinza);touch-action:none;padding:4px}
+  .rt-acoes .ed{background:none;border:none;font-size:17px;cursor:pointer;padding:4px}
+  .rt-ed{margin:8px 0;background:var(--cartao2);border:1px solid var(--linha);border-radius:10px;padding:10px}
+  .rt-ed textarea{width:100%;box-sizing:border-box;font-size:15px;border:1px solid var(--linha);border-radius:8px;padding:8px;background:var(--cartao);color:var(--tinta)}
+  .otim-item.arrastando{opacity:.5;border-color:var(--verde)}
   .ord-item .oh{cursor:grab;font-size:18px;color:var(--cinza);touch-action:none}
   .ord-item.arrastando{opacity:.5;border-color:var(--verde)}
   .ord-item .om{flex:1;font-size:13px;line-height:1.35;min-width:0}
@@ -580,7 +588,7 @@
     <div class="resumo" id="expResumo" style="margin-top:14px"></div>
   </section>
 </div>
-<div class="credito">Elaborado por Renan Guimarães · v15.02-mapa</div>
+<div class="credito">Elaborado por Renan Guimarães · v15.03-rota</div>
 </main>
 
 <nav>
@@ -2777,15 +2785,72 @@ function atualizarBadge(){
 
 
 
-// posição aproximada do utilizador (preenchida quando usa o GPS) — torna as sugestões locais
+// posição do utilizador, obtida EM FUNDO no arranque e renovada —
+// as entregas são perto de ti, e as sugestões devem saber onde estás
 let __posAtual=null;
-if(navigator.geolocation){
-  // pedido silencioso de baixa precisão só para ordenar sugestões; se negado, segue sem
+function obterPosicao(){
+  if(!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(
     p=>{ __posAtual={lat:p.coords.latitude, lon:p.coords.longitude}; },
-    ()=>{}, {enableHighAccuracy:false, timeout:8000, maximumAge:600000});
+    ()=>{}, {enableHighAccuracy:false, timeout:8000, maximumAge:300000});
+}
+obterPosicao();
+setInterval(obterPosicao, 5*60*1000);                    // renova a cada 5 min (vais mudando de zona)
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) obterPosicao(); });
+
+function distKm(a,b){ return dist(a,b); }
+// ordena resultados do mapa pela distância a ti
+function ordenarPorPerto(lista){
+  if(!__posAtual || !lista || lista.length<2) return lista;
+  return [...lista].sort((x,y)=>{
+    if(x.lat==null || y.lat==null) return 0;
+    const dx=dist(__posAtual,{lat:+x.lat,lon:+x.lon}), dy=dist(__posAtual,{lat:+y.lat,lon:+y.lon});
+    return dx-dy;
+  });
 }
 
+
+
+// escreve só o código postal → devolve as ruas dele (base dos CTT + mapa)
+async function ruasDoCP(cp){
+  const out=[];
+  try{
+    const r=await fetch(`https://json.geoapi.pt/cp/${cp}`, {headers:{'Accept':'application/json'}});
+    if(r.ok){
+      const d=await r.json();
+      const freguesia=d.Freguesia||d.freguesia||'';
+      const concelho=d.Concelho||d.concelho||d.Municipio||d.municipio||d.Localidade||d.localidade||'';
+      let ruas=[];
+      [d.pontos, d.partes, d.ruas, d.Ruas, d.Moradas].forEach(f=>{ if(Array.isArray(f)) f.forEach(x=>{
+        const nome = typeof x==='string' ? x : (x.rua||x.Rua||x.arteria||x.Arteria||x.designacao||'');
+        if(nome && !ruas.includes(nome)) ruas.push(nome);
+      });});
+      if(typeof d.Rua==='string' && d.Rua) ruas.push(d.Rua);
+      ruas.slice(0,8).forEach(rua=>{
+        out.push({display_name:[rua, freguesia, concelho, cp].filter(Boolean).join(', '),
+                  lat:null, lon:null});
+      });
+      // sem ruas na base → pelo menos a localidade
+      if(!out.length && (freguesia||concelho)){
+        out.push({display_name:[freguesia, concelho, cp].filter(Boolean).join(', '), lat:null, lon:null});
+      }
+    }
+  }catch(e){}
+  // reforço: pesquisa do CP no mapa
+  if(out.length<3){
+    try{
+      const n=await nominatimLivre(cp+', Portugal','pt');
+      n.slice(0,4).forEach(x=>out.push(x));
+    }catch(e){}
+  }
+  return out;
+}
+
+// se o texto for (ou começar por) um código postal, sugere as ruas dele
+function pareceCP(v){
+  const m=v.trim().match(/^(\d{4})[-\s]?(\d{3})$/);
+  return m ? m[1]+'-'+m[2] : null;
+}
 
 // Photon (Komoot) — motor gratuito, sem chave. Reforça o Nominatim.
 async function photon(q, pos){
@@ -2807,8 +2872,13 @@ async function photon(q, pos){
 
 // pesquisa combinada: Nominatim + Photon, resultados juntos (mais hipóteses de acerto)
 async function buscarMapa(q, pos, soPT){
+  // só o código postal? devolve as ruas desse CP
+  const cp=pareceCP(q);
+  if(cp) return await ruasDoCP(cp);
   let out=[];
-  try{ out=await nominatimLivre(q, soPT?'pt':null); }catch(e){}
+  // com posição: primeiro a busca com viés local (as entregas são perto de ti)
+  if(pos){ try{ out=await nominatimPerto(q, pos); }catch(e){} }
+  if(!out.length){ try{ out=await nominatimLivre(q, soPT?'pt':null); }catch(e){} }
   if(out.length<3){
     try{
       let ph=await photon(q, pos);
@@ -2816,7 +2886,7 @@ async function buscarMapa(q, pos, soPT){
       out=out.concat(ph);
     }catch(e){}
   }
-  return out;
+  return ordenarPorPerto(out);
 }
 
 async function nominatimPerto(q, pos){
@@ -3102,7 +3172,14 @@ async function desenharMapa(){
   const comMorada=pacotes.filter(p=>p.morada).length;
   if(!paragens.length){
     if(!comMorada){
-      estadoMapa('🗺️ O mapa fica aqui. Captura ou pré-atribui pacotes e os pontos aparecem sozinhos.');
+      document.getElementById('mapaStatus').style.display='none';
+      // mapa vazio, centrado onde estás — sem frases óbvias
+      if(window.L){
+        if(!__mapa){ __mapa=L.map('mapa',{zoomControl:true,attributionControl:false}); ligarAzulejos(); }
+        const c=__posAtual||{lat:41.6946,lon:-8.8362};
+        __mapa.setView([c.lat,c.lon], 12);
+        setTimeout(()=>__mapa.invalidateSize(),150);
+      }
       return;
     }
     // há moradas mas ainda nenhuma localizada
@@ -3221,24 +3298,21 @@ function estadoMapa(msg, aviso){
 // ---- reordenar paragens à mão (arrastar na lista) ----
 function renderOrdem(){
   const box=document.getElementById('ordemBox');
-  if(!box) return;
-  if(!rotaParagens.length){ box.innerHTML=''; return; }
-  const lista=[...rotaParagens].sort((a,b)=>a.ordem-b.ordem);
-  box.innerHTML='<div class="mapa-cab" style="border-radius:10px 10px 0 0"><span class="mapa-t">↕️ Ordem das paragens</span><span class="mapa-d">arrasta para reordenar</span></div>'
-    + lista.map((g,i)=>`
-      <div class="ord-item" draggable="true" data-i="${i}"
-           ondragstart="ordDragStart(event)" ondragover="ordDragOver(event)"
-           ondrop="ordDrop(event)" ondragend="ordDragEnd(event)">
-        <span class="on">${g.ordem}</span>
-        <div class="om">${g.morada}<br><span style="color:#6B7A6E;font-size:11px">📦 ${g.pacotes.map(p=>p.nPacote).join(', ')}</span></div>
-        <span class="oh" onpointerdown="ordTouch(event,${i})">⠿</span>
-      </div>`).join('');
+  if(box) box.innerHTML='';   // fundido no bloco da rota
 }
 
+
 let __ordDe=null;
-function ordDragStart(e){ __ordDe=+e.currentTarget.dataset.i; e.currentTarget.classList.add('arrastando'); }
+function ordDragStart(e){
+  __ordDe=+e.currentTarget.dataset.i;
+  const item=e.currentTarget.closest('.otim-item');
+  if(item) item.classList.add('arrastando');
+}
 function ordDragOver(e){ e.preventDefault(); }
-function ordDragEnd(e){ e.currentTarget.classList.remove('arrastando'); }
+function ordDragEnd(e){
+  const item=e.currentTarget.closest('.otim-item');
+  if(item) item.classList.remove('arrastando');
+}
 function ordDrop(e){
   e.preventDefault();
   const para=+e.currentTarget.dataset.i;
@@ -3250,11 +3324,12 @@ function ordDrop(e){
 // toque no telemóvel: arrastar com o dedo
 function ordTouch(e, i){
   e.preventDefault();
-  const item=e.currentTarget.closest('.ord-item');
+  const item=e.currentTarget.closest('.otim-item');
+  if(!item) return;
   item.classList.add('arrastando');
   const mover=(ev)=>{
     const alvo=document.elementFromPoint(ev.clientX, ev.clientY);
-    const dest=alvo && alvo.closest ? alvo.closest('.ord-item') : null;
+    const dest=alvo && alvo.closest ? alvo.closest('.otim-item[data-i]') : null;
     if(dest && +dest.dataset.i!==i){
       moverParagem(i, +dest.dataset.i);
       largar();
@@ -3271,6 +3346,7 @@ function ordTouch(e, i){
 
 function moverParagem(de, para){
   const lista=[...rotaParagens].sort((a,b)=>a.ordem-b.ordem);
+  if(de<0 || de>=lista.length || para<0 || para>=lista.length || de===para) return;
   const [g]=lista.splice(de,1);
   lista.splice(para,0,g);
   lista.forEach((x,k)=>{
@@ -3282,7 +3358,7 @@ function moverParagem(de, para){
   const ord=[]; lista.forEach(x=>x.pacotes.forEach(p=>ord.push(p)));
   const resto=pacotes.filter(p=>!ord.includes(p));
   pacotes=[...ord, ...resto];
-  renderOrdem(); renderRota(); desenharMapa(); renderLista();
+  renderRota(); desenharMapa(); renderLista();
   salvarTrabalho();
   estadoMapa('✓ Ordem alterada à mão. O PDF e o CSV seguem esta ordem.');
 }
@@ -3965,26 +4041,42 @@ function renderRota(geoN, totalN){
     <span class="chip">${nPac} pacotes</span>
     ${juntos?`<span class="chip">${juntos} com vários pacotes</span>`:''}
     ${(totalN&&geoN<totalN)?`<span class="chip aviso">${totalN-geoN} fora do mapa</span>`:''}
+    <span class="chip">⠿ arrasta p/ reordenar · ✏️ edita</span>
   </div>`;
 
   html+=`<div class="otim-item base"><span class="ord">🏠</span><div class="info">
     <div class="mor">Base / partida</div><div class="cod">${baseTxt||'—'}</div></div></div>`;
 
-  rotaParagens.sort((a,b)=>a.ordem-b.ordem).forEach(g=>{
+  const lista=[...rotaParagens].sort((a,b)=>a.ordem-b.ordem);
+  lista.forEach((g,idx)=>{
     const i=pacotes.indexOf(g.pacotes[0]);
     const nums=g.pacotes.map(p=>p.nPacote);
     const chips=nums.map(n=>`<span class="pacchip">📦 ${n}</span>`).join(' ');
     const aviso=g.pacotes.find(p=>p.aviso);
-    html+=`<div class="otim-item ${g.pacotes.length>1?'multi':''}">
+    html+=`<div class="otim-item ${g.pacotes.length>1?'multi':''}" data-i="${idx}"
+        ondragover="ordDragOver(event)" ondrop="ordDrop(event)">
       <span class="ord">${g.ordem}</span>
       <div class="info">
         <div class="mor">${g.morada}</div>
         <div class="cod">${chips}${g.pacotes.length>1?` <b style="color:#C24B24">← ${nums.length} pacotes juntos</b>`:''}</div>
         ${aviso?`<div class="aviso-mor">⚠ ${aviso.aviso}</div>`:''}
+        <div class="rt-ed" id="rte${idx}" style="display:none">
+          <textarea id="rtt${idx}" rows="2">${g.morada}</textarea>
+          <div class="dupla">
+            <button class="btn mini" onclick="salvarRotaEd(${idx})">Guardar</button>
+            <button class="btn mini sec" onclick="fecharRotaEd(${idx})">Cancelar</button>
+          </div>
+        </div>
         <div class="mapas">
           <button class="mapbtn g" onclick="abrirMapa(${i},'google')">Google Maps</button>
           <button class="mapbtn a" onclick="abrirMapa(${i},'apple')">Apple Maps</button>
         </div>
+      </div>
+      <div class="rt-acoes">
+        <span class="oh" draggable="true" data-i="${idx}"
+              ondragstart="ordDragStart(event)" ondragend="ordDragEnd(event)"
+              onpointerdown="ordTouch(event,${idx})">⠿</span>
+        <button class="ed" onclick="abrirRotaEd(${idx})">✏️</button>
       </div>
     </div>`;
   });
@@ -4000,6 +4092,35 @@ function renderRota(geoN, totalN){
   }
   box.innerHTML=html;
 }
+
+// editar a morada de uma paragem, dentro do bloco da rota
+function abrirRotaEd(idx){
+  document.getElementById('rte'+idx).style.display='block';
+  document.getElementById('rtt'+idx).focus();
+}
+function fecharRotaEd(idx){ document.getElementById('rte'+idx).style.display='none'; }
+function salvarRotaEd(idx){
+  const lista=[...rotaParagens].sort((a,b)=>a.ordem-b.ordem);
+  const g=lista[idx];
+  const v=document.getElementById('rtt'+idx).value.trim();
+  if(!g || v.length<6) return;
+  const mudou = chaveMorada(v)!==chaveMorada(g.morada);
+  g.morada=v;
+  g.pacotes.forEach(p=>{
+    p.morada=v;
+    (p.codes||[]).forEach(c=>{ referencia[c]=v; });
+    if(mudou){ p.lat=null; p.lon=null; p.via=null; p.aproximado=false; p.aviso=null; p.falha=null; }
+  });
+  if(mudou){
+    g.pacotes.forEach(p=>pedirGeoPacote(p));
+    pacotes.forEach(p=>{ p.ordem=null; });
+    rotaParagens=[];
+    const br=document.getElementById('btnRecalc'); if(br) br.style.display='block';
+  }
+  renderRota(); renderPendentes(); renderLista();
+  atualizarFalhas(); salvarTrabalho(); desenharMapa();
+}
+
 
 // ---------- Exportar ----------
 function partirMorada(m){
