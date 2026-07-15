@@ -2,11 +2,24 @@
 // Estratégia: a página vem sempre da REDE primeiro (para as atualizações chegarem logo),
 // com recurso à cópia guardada se estiveres offline. As bibliotecas (Tesseract, ZXing,
 // jsPDF…) ficam em cache depois da primeira utilização, para arranques rápidos.
-const CACHE = 'r0t4s-v4';
+const CACHE = 'r0t4s-v5';
 const BASE = ['./index.html', './icon-192.png', './icon-512.png', './icon-180.png'];
+// o Leaflet fica guardado NA INSTALAÇÃO — nunca mais falta quando o mapa abre
+const LIBS = [
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(BASE)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE).then(async c => {
+      await c.addAll(BASE);
+      // bibliotecas externas: uma a uma, sem falhar a instalação se alguma não vier
+      for (const u of LIBS) {
+        try { await c.add(new Request(u, { mode: 'cors' })); } catch (err) {}
+      }
+    }).then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {
