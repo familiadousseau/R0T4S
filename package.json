@@ -1,0 +1,14 @@
+{
+  "name": "r0t4s",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Otimização de rotas para entregadores — PWA de ficheiro único (index.html), publicada no GitHub Pages.",
+  "scripts": {
+    "validar": "node scripts/validar-sintaxe.js",
+    "teste": "node scripts/teste-fluxo.js"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "playwright": "^1.56.1"
+  }
+}

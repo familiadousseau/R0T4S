@@ -16,12 +16,12 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" integrity="sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js" integrity="sha384-BzBxP10ZE72aitqj5UMmUsbKFliP/DZqA8Wq+BNNhlIJDGoEd1tpkMYXOg9+n6sB" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" integrity="sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3" crossorigin="anonymous"></script>
 <style>
   :root{
     --verde:#1B5E20;
@@ -590,7 +590,7 @@
     <div class="resumo" id="expResumo" style="margin-top:14px"></div>
   </section>
 </div>
-<div class="credito">Elaborado por Renan Guimarães · v15.04-fluxo</div>
+<div class="credito">Elaborado por Renan Guimarães · v15.05-robustez</div>
 </main>
 
 <nav>
@@ -663,6 +663,62 @@ let pacotes = [];           // { code, morada, lat, lon, ordem }
 let baseCoord = null;
 let scanner = null, scannerOn = false;
 
+// ================= ARMAZENAMENTO SEGURO (backup automático) =================
+// Antes de sobrescrever uma chave, guarda o valor anterior (se ainda for JSON
+// válido) numa cópia "__seguranca". Se no arranque a chave principal estiver
+// ausente ou corrompida, repõe-se sozinho a partir dessa cópia.
+function avisoArmazenamento(e){
+  if(e && e.name==='QuotaExceededError'){
+    erroPopup('Armazenamento cheio',
+      'O telemóvel está sem espaço para guardar mais dados desta app. Liberta espaço (ou exporta o que já tens na aba Exportar) — senão o trabalho mais recente pode não ficar guardado.', 'quota');
+  }
+}
+// verificação proativa (não à espera do erro): avisa quando os dados da app já ocupam bastante espaço
+function verificarEspacoArmazenamento(){
+  try{
+    let total=0;
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      total += (k.length + (localStorage.getItem(k)||'').length) * 2;   // aprox. UTF-16
+    }
+    if(total > 4*1024*1024){   // a maioria dos telemóveis dá 5-10MB por site
+      erroPopup('Armazenamento quase cheio',
+        'Os dados desta app já ocupam bastante espaço no telemóvel. Exporta o que já tens (aba Exportar) — se o espaço acabar, dados novos podem não ficar guardados.', 'quotaAprox');
+    }
+  }catch(e){}
+}
+function gravarComSeguranca(chave, valor, replacer){
+  try{
+    const atual = localStorage.getItem(chave);
+    if(atual!=null){
+      try{ JSON.parse(atual); localStorage.setItem(chave+'__seguranca', atual); }catch(e){}
+    }
+    localStorage.setItem(chave, JSON.stringify(valor, replacer));
+    return true;
+  }catch(e){
+    avisoArmazenamento(e);
+    return false;
+  }
+}
+// devolve {recuperado:true} se teve de repor a cópia de segurança
+function recuperarSeSeguranca(chave){
+  const bruto = localStorage.getItem(chave);
+  let corrompido = false;
+  if(bruto!=null){
+    try{ JSON.parse(bruto); }catch(e){ corrompido = true; }
+  }
+  if(bruto==null || corrompido){
+    const seg = localStorage.getItem(chave+'__seguranca');
+    if(seg!=null){
+      try{
+        JSON.parse(seg);
+        localStorage.setItem(chave, seg);
+        return {recuperado:true, deCorrompido:corrompido};
+      }catch(e){}
+    }
+  }
+  return {recuperado:false};
+}
 
 // ================= CAPTURA (OCR + código) =================
 let camStream=null, camAtiva=false, ocrWorker=null, capPares=0;
@@ -801,10 +857,11 @@ function emPausa(code){
 // À noite: código (dígitos do ecrã do PDA) + morada → pré-lista, GUARDADA no telemóvel.
 // No galpão: bipar o pacote confirma na hora — número atribuído, sem OCR.
 let preAtribuidos=[];
+let __preRecuperado=recuperarSeSeguranca('preAtrib').recuperado;
 try{ preAtribuidos=JSON.parse(localStorage.getItem('preAtrib')||'[]'); }catch(e){}
 
 function salvarPreLista(){
-  try{ localStorage.setItem('preAtrib', JSON.stringify(preAtribuidos)); }catch(e){}
+  gravarComSeguranca('preAtrib', preAtribuidos);
 }
 let __preModo=false;
 function alternarPre(){
@@ -2084,18 +2141,17 @@ let __trabTimer=null;
 function salvarTrabalho(){
   clearTimeout(__trabTimer);
   __trabTimer=setTimeout(()=>{
-    try{
-      if(!pacotes.length){ localStorage.removeItem('trabalhoDia'); return; }
-      localStorage.setItem('trabalhoDia', JSON.stringify({
-        v:1, quando:new Date().toISOString(),
-        pacotes, referencia,
-        base: (document.getElementById('baseInput')||{}).value||''
-      }, (k,v)=> k==='grupo' ? undefined : v));
-    }catch(e){}
+    if(!pacotes.length){ localStorage.removeItem('trabalhoDia'); return; }
+    gravarComSeguranca('trabalhoDia', {
+      v:1, quando:new Date().toISOString(),
+      pacotes, referencia,
+      base: (document.getElementById('baseInput')||{}).value||''
+    }, (k,v)=> k==='grupo' ? undefined : v);
   }, 400);   // agrupa alterações rápidas numa só gravação
 }
 
 function verificarTrabalho(){
+  const rec=recuperarSeSeguranca('trabalhoDia');
   let t=null;
   try{ t=JSON.parse(localStorage.getItem('trabalhoDia')||'null'); }catch(e){}
   if(!t || !t.pacotes || !t.pacotes.length) return;
@@ -2103,6 +2159,7 @@ function verificarTrabalho(){
   const d=new Date(t.quando);
   const quando=d.toLocaleDateString('pt-PT')+' às '+d.toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
   document.getElementById('trabM').textContent=
+    (rec.recuperado ? '⚠ O ficheiro principal estava em falta ou corrompido — recuperámos automaticamente a última cópia de segurança. ' : '')+
     `Tens ${t.pacotes.length} pacote(s) guardados de ${quando}. Queres continuar onde ficaste, ou começar do zero?`;
   document.getElementById('modalTrab').style.display='flex';
 }
@@ -2152,14 +2209,12 @@ function reconstruirRota(){
 // grava antes de a página fechar/recarregar (sem esperar o temporizador)
 window.addEventListener('beforeunload', ()=>{
   clearTimeout(__trabTimer);
-  try{
-    if(pacotes.length){
-      localStorage.setItem('trabalhoDia', JSON.stringify({
-        v:1, quando:new Date().toISOString(), pacotes, referencia,
-        base:(document.getElementById('baseInput')||{}).value||''
-      }, (k,v)=> k==='grupo' ? undefined : v));
-    }
-  }catch(e){}
+  if(pacotes.length){
+    gravarComSeguranca('trabalhoDia', {
+      v:1, quando:new Date().toISOString(), pacotes, referencia,
+      base:(document.getElementById('baseInput')||{}).value||''
+    }, (k,v)=> k==='grupo' ? undefined : v);
+  }
 });
 
 // ================= IMPORTAR FICHEIRO (CSV / TXT / PDF) =================
@@ -3026,7 +3081,11 @@ function atualizarGeoChip(){
   e.style.display='inline-block';
   let t=`📍 ${ok}/${com.length} no mapa`;
   if(pre) t+=` · pré: ${preOk}/${pre}`;
-  if(geoFila.length) t+=' · a localizar…';
+  if(geoFila.length){
+    const falta=geoFila.length;
+    const segundos=Math.max(1, Math.round(falta*1.1));   // ~1 consulta/seg.; itens em cache são mais rápidos
+    t+=` · a localizar ${falta} morada${falta>1?'s':''}… (~${segundos}s)`;
+  }
   e.textContent=t;
 }
 
@@ -3619,7 +3678,7 @@ function salvarGeoCache(){
     const ks=Object.keys(geoCache);
     if(ks.length>600) ks.slice(0, ks.length-600).forEach(k=>delete geoCache[k]);
     localStorage.setItem('geoCache', JSON.stringify(geoCache));
-  }catch(e){}
+  }catch(e){ avisoArmazenamento(e); }
 }
 
 const RAIO_MAX_KM = 12;
@@ -4361,7 +4420,11 @@ if(!window.isSecureContext || location.protocol==='file:'){
 }
 renderPre();
 preAtribuidos.forEach(x=>pedirGeoPre(x));
+if(__preRecuperado){
+  erroPopup('Pré-lista recuperada', 'A pré-lista principal estava em falta ou corrompida — recuperámos automaticamente a última cópia de segurança guardada no telemóvel.', 'prerec');
+}
 verificarTrabalho();
+verificarEspacoArmazenamento();
 </script>
 <script>
 if('serviceWorker' in navigator && location.protocol==='https:'){
