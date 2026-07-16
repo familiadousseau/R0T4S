@@ -473,6 +473,8 @@
 
       <button class="btn" onclick="gravarPar()">✓ Confirmar e juntar à lista</button>
       <button class="btn sec" onclick="limparCap()">Descartar</button>
+      <button class="btn sec" id="btnLigarPre" onclick="abrirLigarPre()" style="display:none">🌙 É um pré-atribuído? Ligar sem recapturar</button>
+      <div id="ligarPreBox" style="display:none"></div>
     </div>
 
     <div class="resumo" id="capResumo" style="margin-top:14px"></div>
@@ -588,7 +590,7 @@
     <div class="resumo" id="expResumo" style="margin-top:14px"></div>
   </section>
 </div>
-<div class="credito">Elaborado por Renan Guimarães · v15.03-rota</div>
+<div class="credito">Elaborado por Renan Guimarães · v15.04-fluxo</div>
 </main>
 
 <nav>
@@ -770,8 +772,13 @@ function renderSess(){ /* contador na badge do topo */ }
 
 
 // a que pacote já capturado pertence este código?
+
+// comparação de códigos à prova de variações: maiúsculas, espaços, traços, pontos fora
+function normCod(v){ return (v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 function pacoteComCodigo(code){
-  return pacotes.find(p => (p.codes||[]).includes(code)) || null;
+  const n=normCod(code);
+  if(!n) return null;
+  return pacotes.find(p => (p.codes||[]).some(c=>normCod(c)===n)) || null;
 }
 // os outros pacotes da mesma morada
 function irmaosDe(p){
@@ -1170,10 +1177,36 @@ function salvarPreEd(i){
   estado('✓ Pré-atribuído atualizado.');
 }
 
+
+// o código bipado não bateu com a pré-lista (código diferente na etiqueta vs ecrã)?
+// dois toques: escolhes o pré certo e ele entra JÁ, com a morada do pré e ambos os códigos
+function abrirLigarPre(){
+  const box=document.getElementById('ligarPreBox');
+  if(!preAtribuidos.length){ box.style.display='none'; return; }
+  box.style.display='block';
+  box.innerHTML='<div class="dica" style="margin:8px 0 6px">Toca no pacote pré-atribuído correspondente:</div>'+
+    preAtribuidos.map((x,i)=>`
+      <div class="pre-item" onclick="ligarAoPre(${i})" style="cursor:pointer">
+        <div class="pi"><div class="pc">${x.cod}${x.cod2?' · '+x.cod2:''}</div><div class="pm">${x.morada}</div></div>
+      </div>`).join('');
+}
+function ligarAoPre(i){
+  const pre=preAtribuidos[i];
+  if(!pre) return;
+  const bipado=capCodigos.length?capCodigos[0].val:'';
+  document.getElementById('ligarPreBox').style.display='none';
+  // o código bipado fica guardado JUNTO com os do pré — nas próximas vezes bate à primeira
+  confirmarPre(pre, bipado || pre.cod);
+}
+
 // no galpão: este código bate com algum pré-atribuído?
 function encontrarPre(v){
-  if(!v || v.length<6) return null;
-  const bate=(c)=> c && (c===v || (c.length>=6 && (v.includes(c) || c.includes(v))));
+  const n=normCod(v);
+  if(!n || n.length<6) return null;
+  const bate=(c)=>{
+    const cn=normCod(c);
+    return cn && (cn===n || (cn.length>=8 && n.length>=8 && (n.includes(cn) || cn.includes(n))));
+  };
   return preAtribuidos.find(x=> bate(x.cod) || bate(x.cod2)) || null;
 }
 
@@ -2459,6 +2492,10 @@ function estadoLista(msg){
 let __morada='', __editando=false;
 
 function abrirConfirmacao(){
+  const bp=document.getElementById('btnLigarPre');
+  if(bp) bp.style.display = preAtribuidos.length ? 'block' : 'none';
+  const lb=document.getElementById('ligarPreBox');
+  if(lb){ lb.style.display='none'; lb.innerHTML=''; }
   const e=document.getElementById('confNum');
   if(e) e.textContent = pacotes.length+1;
   document.getElementById('confirmar').style.display='block';
