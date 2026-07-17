@@ -590,7 +590,7 @@
     <div class="resumo" id="expResumo" style="margin-top:14px"></div>
   </section>
 </div>
-<div class="credito">Elaborado por Renan Guimarães · v15.05-robustez</div>
+<div class="credito">Elaborado por Renan Guimarães · v15.06-bip</div>
 </main>
 
 <nav>
@@ -1256,6 +1256,13 @@ function ligarAoPre(i){
   confirmarPre(pre, bipado || pre.cod);
 }
 
+// dobra confusões típicas de OCR num só caráter, só para efeitos de comparação
+// (0/O, 1/I/L, 5/S, 8/B, 2/Z, 6/G) — nunca é usado para guardar o código, só para reconhecer
+function normCodOCR(v){
+  return normCod(v).replace(/O/g,'0').replace(/[IL]/g,'1').replace(/S/g,'5')
+                    .replace(/B/g,'8').replace(/Z/g,'2').replace(/G/g,'6');
+}
+
 // no galpão: este código bate com algum pré-atribuído?
 function encontrarPre(v){
   const n=normCod(v);
@@ -1264,7 +1271,13 @@ function encontrarPre(v){
     const cn=normCod(c);
     return cn && (cn===n || (cn.length>=8 && n.length>=8 && (n.includes(cn) || cn.includes(n))));
   };
-  return preAtribuidos.find(x=> bate(x.cod) || bate(x.cod2)) || null;
+  const exato=preAtribuidos.find(x=> bate(x.cod) || bate(x.cod2)) || null;
+  if(exato) return exato;
+  // nenhuma correspondência exata: tenta tolerando confusões de OCR (letra do código de barras
+  // real igual à etiqueta, mas o OCR da noite anterior pode ter trocado um caráter parecido)
+  const nOCR=normCodOCR(v);
+  if(nOCR.length<6) return null;
+  return preAtribuidos.find(x=> normCodOCR(x.cod)===nOCR || (x.cod2 && normCodOCR(x.cod2)===nOCR)) || null;
 }
 
 // confirma: cria o pacote, dá número, mostra o ecrã de marcação
@@ -1740,6 +1753,25 @@ function pararAuto(msg){
 function pista(id,ok){ const e=document.getElementById(id); if(e) e.classList.toggle('ok',!!ok); }
 function estado(t,erro){ const s=document.getElementById('capStatus'); if(!s) return; s.className='scan-status'+(erro?' erro':''); s.textContent=t; }
 
+// Decide o que fazer com as deteções de UMA ronda da câmara. Não toca no DOM
+// nem na câmara — só compara com pacotes/preAtribuidos — para poder ser
+// testado sem hardware. NÃO depende de capCodigos: um código lixo apanhado
+// por engano nunca deve impedir o reconhecimento do código certo a seguir.
+function decidirDeteccoes(deteccoes){
+  const valores = deteccoes.map(x => (x.rawValue||'').trim().toUpperCase().replace(/\s+/g,''));
+  for(const val of valores){
+    if(!val) continue;
+    const dono = pacoteComCodigo(val);
+    if(dono && !emPausa(val)) return { tipo:'ja_atribuido', dono, val };
+  }
+  for(const val of valores){
+    if(!val || pacoteComCodigo(val)) continue;
+    const pre = encontrarPre(val);
+    if(pre) return { tipo:'pre', pre, val };
+  }
+  return { tipo:'novo' };
+}
+
 // --- CICLO 1: códigos (QR + barras). Rápido, independente do OCR. ---
 async function cicloCodigos(){
   const v=document.getElementById('cam');
@@ -1762,22 +1794,9 @@ async function cicloCodigos(){
         const r=await detCodigo.detect(alvo);
 
         if(r && r.length){
-          // 1º: pacote JÁ CAPTURADO → amarelo imediato
-          for(const x of r){
-            const val=(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,'');
-            const dono=pacoteComCodigo(val);
-            if(dono && !capCodigos.length && !emPausa(val)){
-              mostrarJaAtribuido(dono);
-              return;
-            }
-          }
-          // 2º: pré-atribuído → confirma na hora, sem OCR
-          for(const x of r){
-            const val=(x.rawValue||'').trim().toUpperCase().replace(/\s+/g,'');
-            if(pacoteComCodigo(val)) continue;
-            const pre=encontrarPre(val);
-            if(pre && !capCodigos.length){ confirmarPre(pre, val); return; }
-          }
+          const decisao=decidirDeteccoes(r);
+          if(decisao.tipo==='ja_atribuido'){ mostrarJaAtribuido(decisao.dono); return; }
+          if(decisao.tipo==='pre'){ confirmarPre(decisao.pre, decisao.val); return; }
           // 3º: códigos novos — GUARDA TODOS (barras E QR do mesmo pacote)
           let novo=false;
           r.forEach(x=>{
@@ -2956,7 +2975,9 @@ async function photon(q, pos){
     const pr=f.properties||{};
     return {
       lat: c?c[1]:null, lon: c?c[0]:null,
-      address:{ postcode: pr.postcode||'', country_code:(pr.countrycode||'').toLowerCase() },
+      address:{ postcode: pr.postcode||'', country_code:(pr.countrycode||'').toLowerCase(),
+                road: pr.street||pr.name||'', house_number: pr.housenumber||'',
+                city: pr.city||pr.county||'' },
       display_name:[pr.name, pr.street, pr.city, pr.state, pr.country].filter(Boolean).join(', ')
     };
   }).filter(x=>x.lat!=null);
@@ -3025,6 +3046,11 @@ function pedirGeoPacote(p){
       if(r && r.coord){
         p.lat=r.coord.lat; p.lon=r.coord.lon; p.via=r.via;
         p.aproximado=!!r.aproximado; p.aviso=r.aviso||null; p.falha=null;
+        // confiança boa: uniformiza o texto da morada com o que o motor de mapas reconheceu
+        if(r.enderecoOficial && r.enderecoOficial!==p.morada){
+          p.morada=r.enderecoOficial;
+          (p.codes||[]).forEach(c=>{ referencia[c]=p.morada; });
+        }
       }else if(r){
         p.falha=r.erro||null;
       }
@@ -3042,6 +3068,7 @@ function pedirGeoPre(item){
     if(item.morada===m && r && r.coord){
       item.lat=r.coord.lat; item.lon=r.coord.lon;
       item.via=r.via; item.aproximado=!!r.aproximado; item.aviso=r.aviso||null;
+      if(r.enderecoOficial && r.enderecoOficial!==item.morada) item.morada=r.enderecoOficial;
       salvarPreLista();
     }
   });
@@ -3732,23 +3759,36 @@ async function nominatimLivre(q, pais){
   return await r.json();
 }
 
+// morada "oficial", curta e num formato uniforme, a partir dos componentes que o
+// motor de mapas devolveu (rua + nº + código postal + localidade). Sem rua não
+// canonicaliza — mantém-se o texto original, mais vale impreciso que incompleto.
+function formatarMoradaOficial(x){
+  const a=(x&&x.address)||{};
+  const rua=a.road||a.pedestrian||a.footway||'';
+  if(!rua) return null;
+  const num=a.house_number?` nº ${a.house_number}`:'';
+  const cp=(a.postcode||'').trim();
+  const cidade=a.city||a.town||a.village||a.municipality||'';
+  return `${rua}${num}${cp?`, ${cp}`:''}${cidade?` ${cidade}`:''}`.trim();
+}
+
 // dos resultados, escolhe o que respeita a zona do código postal
 function escolher(lista, cp, centro){
   if(!lista || !lista.length) return null;
   const cand=lista.map(x=>{
     const coord={lat:parseFloat(x.lat), lon:parseFloat(x.lon)};
     const cpRes=((x.address&&x.address.postcode)||'').replace(/\s/g,'');
-    return {coord, cpRes,
+    return {coord, cpRes, bruto:x,
       d: centro ? dist(centro,coord) : null,
       cpIgual: cpRes===cp,
       cpZona: cpRes.slice(0,4)===cp.slice(0,4)};
   });
   // código postal idêntico: aceita mesmo que o centro dos CTT diga o contrário
   let m=cand.find(c=>c.cpIgual);
-  if(m) return {coord:m.coord, confianca:'exata'};
+  if(m) return {coord:m.coord, confianca:'exata', enderecoOficial:formatarMoradaOficial(m.bruto)};
   // mesma zona (4 primeiros dígitos) dentro do raio
   m=cand.find(c=>c.cpZona && (c.d==null || c.d<=RAIO_MAX_KM));
-  if(m) return {coord:m.coord, confianca:'zona'};
+  if(m) return {coord:m.coord, confianca:'zona', enderecoOficial:formatarMoradaOficial(m.bruto)};
   // qualquer candidato dentro do raio, o mais próximo
   m=cand.filter(c=>c.d!=null && c.d<=RAIO_MAX_KM).sort((a,b)=>a.d-b.d)[0];
   if(m) return {coord:m.coord, confianca:'proximidade'};
@@ -3810,11 +3850,15 @@ async function geocodeExplicado(morada){
     const r=escolher(lista, cp, centro);
 
     if(r && r.coord){
+      const aproximado = r.confianca==='proximidade' || !centro;
       const __r={coord:r.coord,
         via: k===0?'morada + código postal':'rua + '+(freguesia||concelho||'zona'),
-        aproximado: r.confianca==='proximidade' || !centro,
-        aviso: (!centro && r.confianca!=='exata') ? 'Confirma esta paragem no mapa.' : null};
-      geoCache[ck]={coord:__r.coord, via:__r.via, aproximado:__r.aproximado, aviso:__r.aviso};
+        aproximado,
+        aviso: (!centro && r.confianca!=='exata') ? 'Confirma esta paragem no mapa.' : null,
+        // só propõe substituir o texto da morada quando a confiança é boa —
+        // "aproximado" fica sempre com o texto original, para não substituir por um palpite
+        enderecoOficial: aproximado ? null : (r.enderecoOficial||null)};
+      geoCache[ck]={coord:__r.coord, via:__r.via, aproximado:__r.aproximado, aviso:__r.aviso, enderecoOficial:__r.enderecoOficial};
       salvarGeoCache(); return __r;
     }
     // sem validação por centro (GeoAPI em baixo): aceita a 1ª correspondência do mapa
@@ -3912,7 +3956,11 @@ async function otimizar(){
         status.textContent=`A localizar moradas… (${feito}/${total})`;
         const r=await geocodeExplicado(p.morada);
         if(r.coord){ p.lat=r.coord.lat; p.lon=r.coord.lon; p.via=r.via;
-                     p.aproximado=!!r.aproximado; p.aviso=r.aviso||null; p.falha=null; }
+                     p.aproximado=!!r.aproximado; p.aviso=r.aviso||null; p.falha=null;
+                     if(r.enderecoOficial && r.enderecoOficial!==p.morada){
+                       p.morada=r.enderecoOficial;
+                       (p.codes||[]).forEach(c=>{ referencia[c]=p.morada; });
+                     } }
         if(r && r.cache) continue;   // veio da memória: sem espera
         else { p.falha=r.erro; }
       }

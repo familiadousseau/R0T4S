@@ -86,7 +86,38 @@ async function main(){
     ok('chaveMorada agrupa a mesma morada apesar de acentos/espaços diferentes', r4.iguais);
     ok('chaveMorada distingue números de porta diferentes', r4.diferente);
 
-    // ---- Cenário 5: sintaxe de validação já corre à parte (npm run validar) ----
+    // ---- Cenário 5: código-lixo acumulado ANTES não pode bloquear o match do código certo a seguir
+    // (bug real relatado: código lido corretamente mas não confirmou na hora porque uma leitura
+    // espúria anterior já tinha entrado em capCodigos)
+    await page.evaluate(() => {
+      preAtribuidos.length = 0; pacotes.length = 0; capCodigos.length = 0;
+      preAtribuidos.push({ cod: 'DW481062437PT', cod2: '', morada: 'Rua Escura nº 5, 4900-222 Viana do Castelo' });
+      capCodigos.push({ val: 'LIXO1234', tipo: 'code_128' });   // leitura espúria já acumulada
+    });
+    let r5 = await page.evaluate(() => {
+      const decisao = decidirDeteccoes([{ rawValue: 'DW481062437PT', format: 'code_128' }]);
+      return decisao.tipo;
+    });
+    ok('código certo é reconhecido mesmo com código-lixo já acumulado em capCodigos', r5 === 'pre');
+
+    // ---- Cenário 6: tolerância a confusões típicas de OCR (0/O, 1/I/L, 5/S, 8/B) ----
+    await page.evaluate(() => {
+      preAtribuidos.length = 0; pacotes.length = 0;
+      preAtribuidos.push({ cod: 'DW4B1O62437PT', cod2: '', morada: 'Rua Torta nº 7, 4900-333 Viana do Castelo' });
+    });
+    let r6 = await page.evaluate(() => !!encontrarPre('DW481062437PT'));
+    ok('encontrarPre tolera confusão OCR B/8 e O/0 num único caráter', r6 === true);
+
+    // ---- Cenário 7: canonicalização da morada a partir do resultado do geocoder ----
+    let r7 = await page.evaluate(() => {
+      const comRua = formatarMoradaOficial({ address: { road:'Rua das Flores', house_number:'12', postcode:'4900-000', city:'Viana do Castelo' } });
+      const semRua = formatarMoradaOficial({ address: { postcode:'4900-000', city:'Viana do Castelo' } });
+      return { comRua, semRua };
+    });
+    ok('formatarMoradaOficial monta rua + nº + CP + localidade', r7.comRua === 'Rua das Flores nº 12, 4900-000 Viana do Castelo');
+    ok('formatarMoradaOficial devolve null sem nome de rua (não canonicaliza às cegas)', r7.semRua === null);
+
+    // ---- Cenário 8: sintaxe de validação já corre à parte (npm run validar) ----
 
   } finally {
     await browser.close();
