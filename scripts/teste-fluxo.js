@@ -117,7 +117,22 @@ async function main(){
     ok('formatarMoradaOficial monta rua + nº + CP + localidade', r7.comRua === 'Rua das Flores nº 12, 4900-000 Viana do Castelo');
     ok('formatarMoradaOficial devolve null sem nome de rua (não canonicaliza às cegas)', r7.semRua === null);
 
-    // ---- Cenário 8: sintaxe de validação já corre à parte (npm run validar) ----
+    // ---- Cenário 9: ordenarPorRua agrupa mesma morada e mesma rua lado a lado,
+    // sem mexer nos índices originais (apenas a ordem de apresentação) ----
+    let r9 = await page.evaluate(() => {
+      const lista = [
+        { morada:'Rua A nº 1, 4900-000 Viana do Castelo' },   // i=0
+        { morada:'Rua B nº 5, 4900-000 Viana do Castelo' },   // i=1
+        { morada:'Rua A nº 3, 4900-000 Viana do Castelo' },   // i=2
+        { morada:'Rua A nº 1, 4900-000 Viana do Castelo' },   // i=3 — mesma morada que i=0
+        { morada:'' },                                          // i=4 — sem morada
+      ];
+      const vista = ordenarPorRua(lista);
+      return vista.map(v => v.i);
+    });
+    ok('ordenarPorRua agrupa mesma rua/morada lado a lado e deixa "sem morada" no fim', JSON.stringify(r9) === JSON.stringify([0,3,2,1,4]));
+
+    // ---- Cenário 10: sintaxe de validação já corre à parte (npm run validar) ----
 
   } finally {
     await browser.close();

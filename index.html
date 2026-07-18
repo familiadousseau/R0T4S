@@ -590,7 +590,7 @@
     <div class="resumo" id="expResumo" style="margin-top:14px"></div>
   </section>
 </div>
-<div class="credito">Elaborado por Renan Guimarães · v15.06-bip</div>
+<div class="credito">Elaborado por Renan Guimarães · v15.07-agrupar</div>
 </main>
 
 <nav>
@@ -892,7 +892,7 @@ function renderPre(){
   const res=document.getElementById('preResumo');
   if(res) res.innerHTML = n ? `<span class="chip">${n} pré-atribuídos à espera de bip</span>` : '';
   const box=document.getElementById('preItens');
-  if(box) box.innerHTML = preAtribuidos.map((x,i)=>`
+  if(box) box.innerHTML = ordenarPorRua(preAtribuidos).map(({item:x,i})=>`
     <div class="pre-item" id="pri${i}">
       <div class="pi">
         <div class="pc">${x.cod}${x.cod2?' · '+x.cod2:''}${x.lat!=null?' <span style="color:#1B5E20">📍</span>':''}</div>
@@ -2083,6 +2083,47 @@ function chaveMorada(m){
     .replace(/[^a-z0-9]/g,'');
 }
 
+// ---- ordenar listas para organiza\u00e7\u00e3o f\u00edsica no carro ----
+// mesma morada fica sempre lado a lado; mesma rua (n\u00fameros diferentes) tamb\u00e9m,
+// por ordem crescente de porta \u2014 sem mexer no n\u00ba do pacote nem na ordem de captura.
+function ruaSemNumero(m){
+  const seg=(m||'').split(',')[0].trim();
+  return seg.replace(/\s*(?:n[\u00bao\u00b0]?\.?\s*)?\d+\s*[A-Za-z]?\s*$/i,'').trim();
+}
+function chaveRua(m){ return chaveMorada(ruaSemNumero(m)); }
+function numeroDaRua(m){
+  const seg=(m||'').split(',')[0];
+  const mm=seg.match(/\d+/);
+  return mm ? parseInt(mm[0],10) : null;
+}
+// devolve [{item, i}], i = \u00edndice ORIGINAL na lista (para os onclick continuarem a apontar
+// ao pacote certo depois de reordenar s\u00f3 a apresenta\u00e7\u00e3o)
+function ordenarPorRua(lista){
+  const comMorada=[], semMorada=[];
+  lista.forEach((item,i)=>{ (item.morada ? comMorada : semMorada).push({item,i}); });
+  const grupos=new Map();
+  comMorada.forEach(x=>{
+    const k=chaveRua(x.item.morada);
+    if(!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(x);
+  });
+  const vista=[];
+  grupos.forEach(itens=>{
+    itens.sort((a,b)=>{
+      const ka=chaveMorada(a.item.morada), kb=chaveMorada(b.item.morada);
+      if(ka!==kb){
+        const na=numeroDaRua(a.item.morada), nb=numeroDaRua(b.item.morada);
+        if(na!=null && nb!=null && na!==nb) return na-nb;
+        return ka<kb ? -1 : (ka>kb ? 1 : 0);
+      }
+      return a.i-b.i;   // mesma morada: mant\u00e9m a ordem de captura
+    });
+    vista.push(...itens);
+  });
+  vista.push(...semMorada);   // sem morada: sempre no fim, ordem de captura
+  return vista;
+}
+
 async function gravarPar(){
   const mor=document.getElementById('capMorada').value.trim();
   if(!mor){ estado('A morada está vazia.',true); return; }
@@ -2617,7 +2658,8 @@ function renderLista(){
     return;
   }
   if(btn) btn.style.display='block';
-  ul.innerHTML=pacotes.map((p,i)=>`
+  // mesma rua/morada aparecem lado a lado — facilita arrumar no carro pela mesma ordem
+  ul.innerHTML=ordenarPorRua(pacotes).map(({item:p,i})=>`
     <li class="item ${p.morada?'':'semmorada'}" id="li${i}">
       <span class="num">${p.nPacote||i+1}</span>
       <div class="info">
