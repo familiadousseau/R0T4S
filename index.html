@@ -211,6 +211,7 @@
   .mapbtn{border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;color:#fff}
   .mapbtn.g{background:#1a73e8}
   .mapbtn.a{background:#000}
+  .mapbtn.h{background:#00AFAA}
   .mapbtn:active{opacity:.8}
   .otim-item{align-items:flex-start}
   .otim-item.multi{border-color:#F9A825;background:#FFFDF3}
@@ -590,7 +591,7 @@
     <div class="resumo" id="expResumo" style="margin-top:14px"></div>
   </section>
 </div>
-<div class="credito">Elaborado por Renan Guimarães · v15.07-agrupar</div>
+<div class="credito">Elaborado por Renan Guimarães · v15.08-herewego</div>
 </main>
 
 <nav>
@@ -2716,6 +2717,11 @@ function abrirMapa(i, app){
   let url;
   if(app==='apple' || (app==='auto' && ehIOS)){
     url = p.lat!=null ? `https://maps.apple.com/?daddr=${p.lat},${p.lon}&dirflg=d` : `https://maps.apple.com/?daddr=${q}&dirflg=d`;
+  }else if(app==='here'){
+    // HERE WeGo: waypoint vazio = a tua localização atual; o 2º waypoint é o destino
+    url = p.lat!=null
+      ? `https://wego.here.com/directions/drive//${p.lat},${p.lon}`
+      : `https://wego.here.com/directions/drive//${q}`;
   }else{
     url = p.lat!=null
       ? `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=driving`
@@ -4256,6 +4262,7 @@ function renderRota(geoN, totalN){
         <div class="mapas">
           <button class="mapbtn g" onclick="abrirMapa(${i},'google')">Google Maps</button>
           <button class="mapbtn a" onclick="abrirMapa(${i},'apple')">Apple Maps</button>
+          <button class="mapbtn h" onclick="abrirMapa(${i},'here')">HERE WeGo</button>
         </div>
       </div>
       <div class="rt-acoes">
@@ -4275,6 +4282,9 @@ function renderRota(geoN, totalN){
     const way=pts.slice(0,-1).join('|');
     const maps=`https://www.google.com/maps/dir/?api=1&origin=${origem}&destination=${destino}&waypoints=${encodeURIComponent(way)}&travelmode=driving`;
     html+=`<a class="link-maps" href="${maps}" target="_blank">Abrir a rota toda no Google Maps ↗</a>`;
+    const hereOrigem = baseCoord ? `${baseCoord.lat},${baseCoord.lon}` : origem;
+    const hereUrl=`https://wego.here.com/directions/drive/${[hereOrigem, ...pts].join('/')}`;
+    html+=`<a class="link-maps" href="${hereUrl}" target="_blank" style="background:#00AFAA;margin-top:8px">Abrir a rota toda no HERE WeGo ↗</a>`;
   }
   box.innerHTML=html;
 }
