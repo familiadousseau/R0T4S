@@ -157,7 +157,22 @@ async function main(){
     ok('link da rota toda existe para Google Maps e HERE WeGo', r11.length === 2);
     ok('nenhum dos links da rota toda usa target=_blank', r11.every(a => !a.target));
 
-    // ---- Cenário 12: botão HERE WeGo, COM coordenadas, navega para o link certo
+    // ---- Cenário 12: pendBox (lista de "corrigir moradas") só aparece ANTES de calcular a
+    // rota — depois de calculada, repetia as mesmas moradas que já aparecem na rota abaixo ----
+    let r12 = await page.evaluate(() => {
+      pacotes.length = 0;
+      pacotes.push({ nPacote:1, morada:'Rua Sol nº 2, 4900-050 Viana do Castelo', lat:null, lon:null, ordem:null });
+      renderPendentes();
+      const antesDeCalcular = document.getElementById('pendBox').innerHTML.trim().length > 0;
+      pacotes[0].ordem = 1;   // simula rota já calculada
+      renderPendentes();
+      const depoisDeCalcular = document.getElementById('pendBox').innerHTML.trim().length > 0;
+      return { antesDeCalcular, depoisDeCalcular };
+    });
+    ok('pendBox mostra a lista antes de haver rota calculada', r12.antesDeCalcular === true);
+    ok('pendBox fica vazio depois de a rota já estar calculada (evita duplicar moradas no ecrã)', r12.depoisDeCalcular === false);
+
+    // ---- Cenário 13: botão HERE WeGo, COM coordenadas, navega para o link certo
     // (share.here.com — wego.here.com só abre a página web/download, foi o bug relatado
     // — e usa "mylocation" como origem). É o último cenário: a navegação sai do app. ----
     const capturados = [];

@@ -591,7 +591,7 @@
     <div class="resumo" id="expResumo" style="margin-top:14px"></div>
   </section>
 </div>
-<div class="credito">Elaborado por Renan Guimarães · v15.10-sem-aba-extra</div>
+<div class="credito">Elaborado por Renan Guimarães · v15.11-sem-duplicar</div>
 </main>
 
 <nav>
@@ -3548,11 +3548,13 @@ function renderPendentes(){
   if(!box) return;
   const com=pacotes.filter(p=>p.morada);
   const temRota=pacotes.some(p=>p.ordem);
-  if(!com.length){ box.innerHTML=''; return; }
+  // com a rota já calculada, esta lista repetia todas as moradas outra vez, iguais às que já
+  // aparecem em baixo na rota (essa já dá para editar por paragem, com ✏️) — só duplicava o ecrã
+  if(!com.length || temRota){ box.innerHTML=''; return; }
 
   box.innerHTML=`<div class="resumo" style="margin:14px 0">
-      <span class="chip">${temRota?'✏️ Corrigir moradas':com.length+' moradas prontas a otimizar'}</span>
-      ${temRota?'<span class="chip aviso">corrigir invalida a rota — recalcula depois</span>':'<span class="chip">✏️ toca para corrigir</span>'}</div>`
+      <span class="chip">${com.length} moradas prontas a otimizar</span>
+      <span class="chip">✏️ toca para corrigir</span></div>`
     + com.map(p=>{
       const i=pacotes.indexOf(p);
       return `<div class="otim-item" id="pd${i}">
