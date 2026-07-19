@@ -132,7 +132,8 @@ async function main(){
     });
     ok('ordenarPorRua agrupa mesma rua/morada lado a lado e deixa "sem morada" no fim', JSON.stringify(r9) === JSON.stringify([0,3,2,1,4]));
 
-    // ---- Cenário 10: botão HERE WeGo gera o link certo (com e sem coordenadas) ----
+    // ---- Cenário 10: botão HERE WeGo usa share.here.com (o domínio que abre a app instalada —
+    // wego.here.com só abre a página web/download, foi o bug relatado) e exige coordenadas ----
     let r10 = await page.evaluate(() => {
       pacotes.length = 0;
       pacotes.push({ nPacote:1, morada:'Rua Sol nº 2, 4900-050 Viana do Castelo', lat:41.69, lon:-8.83 });
@@ -141,12 +142,12 @@ async function main(){
       const originalOpen = window.open;
       window.open = (u) => abertos.push(u);
       abrirMapa(0, 'here');
-      abrirMapa(1, 'here');
+      abrirMapa(1, 'here');   // sem coordenadas: não deve abrir nada (mostra aviso em vez de link partido)
       window.open = originalOpen;
       return abertos;
     });
-    ok('HERE WeGo com coordenadas usa lat,lon', r10[0] === 'https://wego.here.com/directions/drive//41.69,-8.83');
-    ok('HERE WeGo sem coordenadas cai para a morada em texto', r10[1].startsWith('https://wego.here.com/directions/drive//') && decodeURIComponent(r10[1].split('drive//')[1]).includes('Rua Sombra'));
+    ok('HERE WeGo usa share.here.com com "mylocation" + coordenadas do destino', r10[0] === 'https://share.here.com/r/mylocation/41.69,-8.83?m=d');
+    ok('HERE WeGo sem coordenadas não abre link (evita mandar para o sítio errado)', r10.length === 1);
 
     // ---- Cenário 11: sintaxe de validação já corre à parte (npm run validar) ----
 

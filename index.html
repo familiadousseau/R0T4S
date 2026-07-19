@@ -591,7 +591,7 @@
     <div class="resumo" id="expResumo" style="margin-top:14px"></div>
   </section>
 </div>
-<div class="credito">Elaborado por Renan Guimarães · v15.08-herewego</div>
+<div class="credito">Elaborado por Renan Guimarães · v15.09-herewego-fix</div>
 </main>
 
 <nav>
@@ -2718,10 +2718,14 @@ function abrirMapa(i, app){
   if(app==='apple' || (app==='auto' && ehIOS)){
     url = p.lat!=null ? `https://maps.apple.com/?daddr=${p.lat},${p.lon}&dirflg=d` : `https://maps.apple.com/?daddr=${q}&dirflg=d`;
   }else if(app==='here'){
-    // HERE WeGo: waypoint vazio = a tua localização atual; o 2º waypoint é o destino
-    url = p.lat!=null
-      ? `https://wego.here.com/directions/drive//${p.lat},${p.lon}`
-      : `https://wego.here.com/directions/drive//${q}`;
+    // share.here.com (não wego.here.com!) é o domínio com deep link para a app instalada —
+    // "mylocation" é a palavra-chave da HERE para a tua posição atual. Precisa de coordenadas:
+    // sem lat/lon ainda não há link fiável (a HERE não aceita texto livre nas paragens).
+    if(p.lat==null){
+      erroPopup('Ainda a localizar esta morada', 'Esta paragem ainda não tem coordenadas — espera a geocodificação terminar (chip "📍" na aba Otimizar) ou usa o Google/Apple Maps entretanto.', null);
+      return;
+    }
+    url = `https://share.here.com/r/mylocation/${p.lat},${p.lon}?m=d`;
   }else{
     url = p.lat!=null
       ? `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=driving`
@@ -4282,8 +4286,9 @@ function renderRota(geoN, totalN){
     const way=pts.slice(0,-1).join('|');
     const maps=`https://www.google.com/maps/dir/?api=1&origin=${origem}&destination=${destino}&waypoints=${encodeURIComponent(way)}&travelmode=driving`;
     html+=`<a class="link-maps" href="${maps}" target="_blank">Abrir a rota toda no Google Maps ↗</a>`;
-    const hereOrigem = baseCoord ? `${baseCoord.lat},${baseCoord.lon}` : origem;
-    const hereUrl=`https://wego.here.com/directions/drive/${[hereOrigem, ...pts].join('/')}`;
+    // "mylocation" = a tua posição no momento em que abrires o link (mais útil a meio da rota
+    // do que a morada fixa da base, já que a HERE também não aceita texto livre nas paragens)
+    const hereUrl=`https://share.here.com/r/${['mylocation', ...pts].join('/')}?m=d`;
     html+=`<a class="link-maps" href="${hereUrl}" target="_blank" style="background:#00AFAA;margin-top:8px">Abrir a rota toda no HERE WeGo ↗</a>`;
   }
   box.innerHTML=html;
