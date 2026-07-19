@@ -132,24 +132,46 @@ async function main(){
     });
     ok('ordenarPorRua agrupa mesma rua/morada lado a lado e deixa "sem morada" no fim', JSON.stringify(r9) === JSON.stringify([0,3,2,1,4]));
 
-    // ---- Cenário 10: botão HERE WeGo usa share.here.com (o domínio que abre a app instalada —
-    // wego.here.com só abre a página web/download, foi o bug relatado) e exige coordenadas ----
+    // ---- Cenário 10: botão HERE WeGo, sem coordenadas, não navega (mostra aviso em vez de
+    // link partido) — testado primeiro porque o cenário seguinte navega a página para fora ----
     let r10 = await page.evaluate(() => {
       pacotes.length = 0;
-      pacotes.push({ nPacote:1, morada:'Rua Sol nº 2, 4900-050 Viana do Castelo', lat:41.69, lon:-8.83 });
-      pacotes.push({ nPacote:2, morada:'Rua Sombra nº 4, 4900-060 Viana do Castelo', lat:null, lon:null });
-      const abertos = [];
-      const originalOpen = window.open;
-      window.open = (u) => abertos.push(u);
+      pacotes.push({ nPacote:1, morada:'Rua Sombra nº 4, 4900-060 Viana do Castelo', lat:null, lon:null });
       abrirMapa(0, 'here');
-      abrirMapa(1, 'here');   // sem coordenadas: não deve abrir nada (mostra aviso em vez de link partido)
-      window.open = originalOpen;
-      return abertos;
+      return { aindaNoApp: location.href.includes('index.html'), modalAberto: document.getElementById('modal').style.display };
     });
-    ok('HERE WeGo usa share.here.com com "mylocation" + coordenadas do destino', r10[0] === 'https://share.here.com/r/mylocation/41.69,-8.83?m=d');
-    ok('HERE WeGo sem coordenadas não abre link (evita mandar para o sítio errado)', r10.length === 1);
+    ok('HERE WeGo sem coordenadas não navega para lado nenhum', r10.aindaNoApp && r10.modalAberto === 'flex');
 
-    // ---- Cenário 11: sintaxe de validação já corre à parte (npm run validar) ----
+    // ---- Cenário 11: link "rota toda" (Google/HERE) não usa target=_blank — abrir numa aba
+    // nova deixava um separador do browser pendurado depois de a app de mapas assumir ----
+    let r11 = await page.evaluate(() => {
+      pacotes.length = 0;
+      pacotes.push({ nPacote:1, morada:'Rua Sol nº 2, 4900-050 Viana do Castelo', lat:41.69, lon:-8.83 });
+      pacotes.push({ nPacote:2, morada:'Rua Nova nº 9, 4900-100 Viana do Castelo', lat:41.70, lon:-8.84 });
+      rotaParagens = pacotes.map((p,idx)=>({ ordem:idx+1, lat:p.lat, lon:p.lon, morada:p.morada, pacotes:[p] }));
+      document.getElementById('baseInput').value = 'Armazém CTT, Viana do Castelo';
+      renderRota(2, 2);
+      const links = [...document.querySelectorAll('#otimResult a.link-maps')];
+      return links.map(a => ({ href: a.getAttribute('href'), target: a.getAttribute('target') }));
+    });
+    ok('link da rota toda existe para Google Maps e HERE WeGo', r11.length === 2);
+    ok('nenhum dos links da rota toda usa target=_blank', r11.every(a => !a.target));
+
+    // ---- Cenário 12: botão HERE WeGo, COM coordenadas, navega para o link certo
+    // (share.here.com — wego.here.com só abre a página web/download, foi o bug relatado
+    // — e usa "mylocation" como origem). É o último cenário: a navegação sai do app. ----
+    const capturados = [];
+    await page.route('https://share.here.com/**', route => {
+      capturados.push(route.request().url());
+      route.fulfill({ status: 200, contentType: 'text/plain', body: 'stub' });
+    });
+    await page.evaluate(() => {
+      pacotes.length = 0;
+      pacotes.push({ nPacote:1, morada:'Rua Sol nº 2, 4900-050 Viana do Castelo', lat:41.69, lon:-8.83 });
+      abrirMapa(0, 'here');
+    });
+    await page.waitForURL('https://share.here.com/**', { timeout: 5000 }).catch(()=>{});
+    ok('HERE WeGo com coordenadas navega para share.here.com com "mylocation"', capturados[0] === 'https://share.here.com/r/mylocation/41.69,-8.83?m=d');
 
   } finally {
     await browser.close();

@@ -591,7 +591,7 @@
     <div class="resumo" id="expResumo" style="margin-top:14px"></div>
   </section>
 </div>
-<div class="credito">Elaborado por Renan Guimarães · v15.09-herewego-fix</div>
+<div class="credito">Elaborado por Renan Guimarães · v15.10-sem-aba-extra</div>
 </main>
 
 <nav>
@@ -2731,7 +2731,10 @@ function abrirMapa(i, app){
       ? `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=driving`
       : `https://www.google.com/maps/dir/?api=1&destination=${q}&travelmode=driving`;
   }
-  window.open(url,'_blank');
+  // navega na MESMA janela (sem target=_blank): a app está instalada como PWA, e abrir
+  // numa aba nova faz o telemóvel criar um separador do browser que fica "pendurado" no
+  // fundo depois de a app de mapas assumir — a navegação direta evita esse resto.
+  location.href = url;
 }
 
 
@@ -4285,11 +4288,13 @@ function renderRota(geoN, totalN){
     const destino=pts[pts.length-1];
     const way=pts.slice(0,-1).join('|');
     const maps=`https://www.google.com/maps/dir/?api=1&origin=${origem}&destination=${destino}&waypoints=${encodeURIComponent(way)}&travelmode=driving`;
-    html+=`<a class="link-maps" href="${maps}" target="_blank">Abrir a rota toda no Google Maps ↗</a>`;
+    // sem target=_blank: na PWA instalada, abrir numa aba nova deixa um separador do
+    // browser pendurado no fundo depois de a app de mapas assumir (relatado pelo utilizador)
+    html+=`<a class="link-maps" href="${maps}">Abrir a rota toda no Google Maps ↗</a>`;
     // "mylocation" = a tua posição no momento em que abrires o link (mais útil a meio da rota
     // do que a morada fixa da base, já que a HERE também não aceita texto livre nas paragens)
     const hereUrl=`https://share.here.com/r/${['mylocation', ...pts].join('/')}?m=d`;
-    html+=`<a class="link-maps" href="${hereUrl}" target="_blank" style="background:#00AFAA;margin-top:8px">Abrir a rota toda no HERE WeGo ↗</a>`;
+    html+=`<a class="link-maps" href="${hereUrl}" style="background:#00AFAA;margin-top:8px">Abrir a rota toda no HERE WeGo ↗</a>`;
   }
   box.innerHTML=html;
 }
