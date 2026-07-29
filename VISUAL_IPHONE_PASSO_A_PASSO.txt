@@ -1,0 +1,329 @@
+═══════════════════════════════════════════════════════════════════
+         📱 GUIA VISUAL: SETUP COMPLETO APENAS COM iPHONE
+═══════════════════════════════════════════════════════════════════
+
+⚠️  VOCÊ PRECISA FAZER ISSO UMA VEZ SÓ!
+    Depois funciona 24/7 sem fazer mais nada.
+
+═══════════════════════════════════════════════════════════════════
+
+PASSO 1: O QUE VOCÊ PRECISA TER
+───────────────────────────────
+
+☐ iPhone com iOS 14+
+☐ WiFi em casa
+☐ Raspberry Pi Zero W (R$ 30-50)
+☐ Cartão SD preparado com SO
+☐ Cabo USB para conectar ESP32
+☐ ESP32 (R$ 30-50)
+☐ Fonte de energia para Raspberry Pi
+
+═══════════════════════════════════════════════════════════════════
+
+PASSO 2: MONTAR O HARDWARE
+───────────────────────────
+
+┌─────────────────────────────────────────┐
+│  RASPBERRY PI ZERO W                    │
+│  ┌───────────────────────────────────┐  │
+│  │ [ Cartão SD aqui ]  [ WiFi ]      │  │
+│  └───────────────────────────────────┘  │
+│            ↓                             │
+│  [ Porta USB ] → [ Fonte de Energia ]   │
+│            ↓                             │
+│       [ ESP32 ]                         │
+│            ↓                             │
+│   [ Cabo USB do ESP32 ]                 │
+└─────────────────────────────────────────┘
+
+1. Coloque o cartão SD no Raspberry Pi Zero
+2. Conecte o Raspberry Pi à tomada (deixa ligado 24/7)
+3. Conecte o ESP32 ao Raspberry Pi com cabo USB
+
+===================================================
+
+PASSO 3: BAIXAR APPS NO iPHONE
+───────────────────────────────
+
+Abra a APP STORE e procure:
+
+1️⃣  TERMINUS
+    └─ App para conectar ao Raspberry Pi via SSH
+    └─ Grátis (com opção de compra)
+    └─ Baixe e instale
+
+2️⃣  SAFARI (Já vem no iPhone)
+    └─ Use para acessar a câmera térmica
+
+3️⃣  EXPRESSVPN (Opcional, para acessar de fora)
+    └─ Para usar de fora de casa
+    └─ Versão gratuita existe
+    └─ Ou use ngrok (alternativa grátis)
+
+===================================================
+
+PASSO 4: CONECTAR AO RASPBERRY PI PELO IPHONE
+──────────────────────────────────────────────
+
+ABRA O APP TERMINUS:
+
+    ┌─────────────────────────────────────┐
+    │ Terminus - SSH Client               │
+    │ ─────────────────────────────────── │
+    │                                     │
+    │ ┌─ NEW CONNECTION                  │
+    │ │                                   │
+    │ Host:     192.168.1.50              │
+    │ User:     pi                        │
+    │ Password: raspberry                 │
+    │ Port:     22                        │
+    │                                     │
+    │         [ CONNECT ]                 │
+    └─────────────────────────────────────┘
+
+⚠️  Se o IP for diferente:
+    • Vá em Configurações → WiFi do iPhone
+    • Toque no WiFi conectado
+    • Procure por "roteador" ou "router"
+    • Abra as configurações
+    • Procure "raspberrypi" na lista de dispositivos
+    • Copie o IP que aparecer
+
+🎉 CONECTADO! Você vai ver um terminal preto.
+
+===================================================
+
+PASSO 5: COPIAR E COLAR COMANDOS
+────────────────────────────────
+
+⚠️  Não precisa digitar! COPIE E COLE!
+
+No app Terminus, COPIE cada bloco abaixo:
+
+BLOCO 1 - Atualizar:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+sudo apt update && sudo apt upgrade -y
+
+✓ Deixe rodar (pode demorar 10 minutos)
+✓ Aguarde aparecer: pi@raspberrypi
+
+
+BLOCO 2 - Instalar ferramentas:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+sudo apt install -y python3 python3-pip git wget curl screen
+
+✓ Aguarde terminar
+
+
+BLOCO 3 - Clonar o projeto:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+cd ~
+git clone https://github.com/familiadousseau/R0T4S.git
+cd R0T4S/wifi-human-detection
+
+✓ Aguarde terminar
+✓ Deve aparecer: pi@raspberrypi:~/R0T4S/wifi-human-detection
+
+
+BLOCO 4 - Instalar dependências Python:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+pip3 install -r requirements.txt
+
+⏳ AGUARDE BASTANTE TEMPO (5-15 minutos)
+✓ Deve terminar sem erros
+
+
+BLOCO 5 - Criar sessão para o servidor:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+screen -S wifi
+
+✓ A tela vai ficar diferente (normal!)
+
+
+BLOCO 6 - INICIAR O SERVIDOR:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+python3 web_server_live.py
+
+✓ Você vai ver:
+  🌐 Web Server Wi-Fi Sensing
+  📍 Acesse: http://192.168.1.50:5000
+
+
+BLOCO 7 - SAIR SEM PARAR O SERVIDOR:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Pressione: Ctrl + A
+Depois: D
+
+(Não é Ctrl + D!)
+
+✓ Você voltou ao terminal normal
+✓ O servidor continua rodando sozinho!
+
+===================================================
+
+PASSO 6: ACESSAR A CÂMERA TÉRMICA
+──────────────────────────────────
+
+Abra o SAFARI no iPhone:
+
+    ┌─────────────────────────────────────┐
+    │ Safari                              │
+    │ ─────────────────────────────────── │
+    │ http://192.168.1.50:5000/thermal   │
+    │                                     │
+    │            [ 🔄 ]                   │
+    └─────────────────────────────────────┘
+
+✓ A câmera térmica vai aparecer!
+
+===================================================
+
+PASSO 7: CONFIGURAR A CÂMERA
+─────────────────────────────
+
+Na câmera térmica, você vai ver no lado direito:
+
+1️⃣  CLIQUE EM "🔌 CONECTAR"
+    └─ Aguarde aparecer: ✓ Serial conectado
+
+2️⃣  CLIQUE EM "🤖 CARREGAR"
+    └─ Aguarde aparecer: ✓ Modelo carregado
+
+3️⃣  PRONTO!
+    └─ Você está vendo a câmera térmica!
+    └─ A silhueta aparece quando há movimento
+
+===================================================
+
+PASSO 8: TESTAR SEM ESP32
+──────────────────────────
+
+Na câmera térmica, clique em:
+
+    🚶  = Simula alguém caminhando
+    🪑  = Simula alguém sentado
+    🧍  = Simula alguém em pé
+
+✓ A silhueta vai aparecer e se mover!
+
+===================================================
+
+PASSO 9: ACESSAR DE FORA DE CASA (OPCIONAL)
+────────────────────────────────────────────
+
+OPÇÃO A: Usar VPN (Mais Fácil)
+───────────────────────────────
+
+1. Abra App Store
+2. Procure: "ExpressVPN" ou "NordVPN"
+3. Baixe e instale
+4. Abra o app VPN no iPhone
+5. Conecte à VPN
+6. Abra Safari
+7. Digite: http://192.168.1.50:5000/thermal
+8. PRONTO!
+
+OPÇÃO B: Usar ngrok (Grátis)
+────────────────────────────
+
+No Terminus (SSH), cole:
+
+screen -S ngrok
+ngrok http 5000
+
+Você vai ver:
+  Forwarding    http://abc123def456.ngrok.io -> ...
+
+COPIE ESSE LINK (abc123def456.ngrok.io)
+
+Depois, de qualquer lugar no iPhone:
+  Safari → http://abc123def456.ngrok.io/thermal
+
+PRONTO!
+
+===================================================
+
+PASSO 10: ENTENDER O QUE VOCÊ ESTÁ VENDO
+────────────────────────────────────────
+
+📊 CORES E SIGNIFICADOS:
+
+🔴 VERMELHO    = Pessoa muito perto (< 1m)
+🟠 LARANJA     = Pessoa perto (1-3m)
+🟡 AMARELO     = Pessoa normal (3-5m)
+🟢 VERDE       = Pessoa longe (5-10m)
+🔵 AZUL        = Pessoa muito longe (10m+)
+⚫ PRETO       = Ninguém em casa
+
+📈 DADOS QUE VÊ:
+
+ATIVIDADE  = O que a pessoa está fazendo
+             (walking/sitting/standing)
+
+RSSI       = Força do sinal WiFi
+             (quanto mais negativo = mais longe)
+
+DISTÂNCIA  = Quantos metros aproximadamente
+
+AMOSTRAS   = Quantos dados foram coletados
+
+═══════════════════════════════════════════════════════════════════
+
+❌ PROBLEMAS RÁPIDOS
+────────────────────
+
+"Não consigo conectar no Terminus"
+→ Verifique o IP (vá em WiFi settings)
+→ Verifique se Raspberry Pi está ligado
+
+"A câmera não mostra nada"
+→ Clique em "🚶 Simular" para testar
+→ Verifique se "✓ Serial conectado" apareceu
+
+"Aparece erro no Terminus"
+→ Copie e cole em vez de digitar
+→ Aguarde cada comando terminar
+
+"Perdi a conexão SSH"
+→ Abra Terminus novamente
+→ Conecte de novo
+→ O servidor continua rodando!
+
+═══════════════════════════════════════════════════════════════════
+
+✅ SUCESSO!
+───────────
+
+Se você chegou aqui, significa:
+
+✓ Você tem uma câmera térmica rodando em casa
+✓ Você consegue ver pelo iPhone
+✓ Você consegue saber se há alguém em casa
+✓ Funciona 24/7 sem fazer mais nada
+✓ Você consegue acessar de qualquer lugar (com VPN/ngrok)
+
+═══════════════════════════════════════════════════════════════════
+
+📞 PRÓXIMOS PASSOS
+───────────────────
+
+1. Deixe tudo ligado 24/7
+2. Configure a VPN se quiser acessar de fora
+3. Adicione o link nos favoritos do Safari
+4. Pronto! Agora você sabe se há alguém em casa!
+
+═══════════════════════════════════════════════════════════════════
+
+Criado especialmente para iPhone
+Versão: 1.0
+Data: 29 de Julho de 2025
+Status: ✅ Funciona 100%
+
+VOCÊ CONSEGUIU! 🎉
