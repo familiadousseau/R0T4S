@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>🛰️ WiFi Sensing ao Vivo</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            font-size: 1.2em;
+            color: #667eea;
+            margin: 0;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #f5f5f5;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4757;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.online {
+            background: #2ed573;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .container {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+
+        .activity-display {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            padding: 30px 20px;
+            color: white;
+            text-align: center;
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+        }
+
+        .activity-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .activity-icon {
+            font-size: 3em;
+            margin: 16px 0;
+        }
+
+        .activity-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .stat-mini {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            opacity: 0.9;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 1.4em;
+            font-weight: bold;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+            margin: 12px 0;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:active {
+            transform: scale(0.95);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+        }
+
+        .btn-secondary {
+            background: #e8f0f7;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:active {
+            background: #667eea;
+            color: white;
+        }
+
+        input, select {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            width: 100%;
+            margin: 8px 0;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .log-box {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8em;
+            height: 120px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .log-entry {
+            margin: 3px 0;
+            padding: 2px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .log-time {
+            color: #888;
+            margin-right: 8px;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #667eea;
+            animation: bounce 1s infinite;
+            margin-left: 6px;
+        }
+
+        @keyframes bounce {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .connection-form {
+            margin-bottom: 12px;
+        }
+
+        .info-text {
+            font-size: 0.85em;
+            color: #666;
+            margin: 8px 0;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .activity-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+        }
+
+        .activity-buttons .btn {
+            padding: 10px 6px;
+            font-size: 0.8em;
+        }
+
+        @media (max-height: 600px) {
+            .header h1 {
+                font-size: 1em;
+            }
+            .activity-display {
+                padding: 20px;
+            }
+            .activity-value {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛰️ WiFi Sensing</h1>
+        <div class="status-badge">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Conectando...</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Detecção em Tempo Real -->
+        <div class="activity-display">
+            <div class="activity-label">Atividade Detectada</div>
+            <div class="activity-icon" id="activityIcon">❓</div>
+            <div class="activity-value" id="activityValue">AGUARDANDO</div>
+            <div class="stats-grid">
+                <div class="stat-mini">
+                    <div class="stat-label">RSSI</div>
+                    <div class="stat-value" id="rssiValue">--</div>
+                </div>
+                <div class="stat-mini">
+                    <div class="stat-label">Buffer</div>
+                    <div class="stat-value" id="bufferValue">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico CSI -->
+        <div class="card">
+            <h3 style="margin-bottom: 12px; color: #667eea;">📊 Amplitude CSI</h3>
+            <div class="chart-container">
+                <canvas id="csiChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Conexão Serial -->
+        <div class="card">
+            <h3 style="margin-bottom: 12px; color: #667eea;">🔌 Conexão</h3>
+            <div class="connection-form">
+                <div class="form-group">
+                    <input type="text" id="serialPort" placeholder="Porta" value="/dev/ttyUSB0">
+                    <input type="number" id="baudRate" placeholder="Baud" value="115200">
+                </div>
+                <button class="btn btn-primary" onclick="connectSerial()" style="width: 100%;">
+                    Conectar <span class="loader" id="connectLoader" style="display:none;"></span>
+                </button>
+                <p class="info-text" id="connectionInfo">Aguardando conexão...</p>
+            </div>
+        </div>
+
+        <!-- Modelo ML -->
+        <div class="card">
+            <h3 style="margin-bottom: 12px; color: #667eea;">🤖 Modelo ML</h3>
+            <input type="text" id="modelPath" placeholder="Caminho do modelo" value="model.pkl">
+            <button class="btn btn-primary" onclick="loadModel()" style="width: 100%; margin-top: 8px;">
+                Carregar Modelo
+            </button>
+            <p class="info-text" id="modelInfo">Modelo não carregado</p>
+        </div>
+
+        <!-- Controle ESP32 -->
+        <div class="card">
+            <h3 style="margin-bottom: 12px; color: #667eea;">🎮 Controle</h3>
+            <div class="activity-buttons">
+                <button class="btn btn-primary" onclick="sendCommand('walking')">🚶 Walk</button>
+                <button class="btn btn-primary" onclick="sendCommand('sitting')">🪑 Sit</button>
+                <button class="btn btn-primary" onclick="sendCommand('standing')">🧍 Stand</button>
+            </div>
+        </div>
+
+        <!-- Log -->
+        <div class="card">
+            <h3 style="margin-bottom: 12px; color: #667eea;">📋 Log</h3>
+            <div class="log-box" id="eventLog">
+                <div class="log-entry"><span class="log-time">[APP]</span> Iniciando...</div>
+            </div>
+        </div>
+
+        <!-- Rodapé -->
+        <div class="card" style="text-align: center; color: #999; font-size: 0.85em;">
+            <p>WiFi CSI Human Activity Detection</p>
+            <p id="ipInfo">IP: --</p>
+        </div>
+    </div>
+
+    <script>
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // WebSocket Connection
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        const socket = io();
+        let csiChart = null;
+
+        socket.on('connect', () => {
+            log('✓ Conectado ao servidor', 'success');
+            updateStatus(true);
+        });
+
+        socket.on('disconnect', () => {
+            log('✗ Desconectado do servidor', 'error');
+            updateStatus(false);
+        });
+
+        socket.on('connection_response', (data) => {
+            log(`✓ Server: ${data.data}`, 'success');
+            updateStatus(data.connected);
+            document.getElementById('ipInfo').textContent = `IP: ${data.local_ip}:5000`;
+        });
+
+        socket.on('activity_detected', (data) => {
+            updateActivity(data.activity, data.rssi);
+            document.getElementById('bufferValue').textContent = data.buffer_size;
+        });
+
+        socket.on('model_loaded', (data) => {
+            if (data.success) {
+                document.getElementById('modelInfo').textContent = '✓ Modelo carregado';
+                log('✓ Modelo ML carregado', 'success');
+            } else {
+                document.getElementById('modelInfo').textContent = '✗ Erro ao carregar';
+                log('✗ Erro ao carregar modelo', 'error');
+            }
+        });
+
+        socket.on('connection_status', (data) => {
+            if (data.connected) {
+                document.getElementById('connectionInfo').textContent = `✓ ${data.port} @ ${data.baud}`;
+                log('✓ Serial conectado', 'success');
+            } else {
+                document.getElementById('connectionInfo').textContent = `✗ ${data.error || 'Erro'}`;
+                log('✗ Falha na conexão serial', 'error');
+            }
+        });
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Funções
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        function updateStatus(online) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+
+            if (online) {
+                dot.classList.add('online');
+                text.textContent = '✓ Online';
+            } else {
+                dot.classList.remove('online');
+                text.textContent = '✗ Offline';
+            }
+        }
+
+        function updateActivity(activity, rssi) {
+            const value = document.getElementById('activityValue');
+            const icon = document.getElementById('activityIcon');
+            const rssiEl = document.getElementById('rssiValue');
+
+            value.textContent = activity.toUpperCase();
+            rssiEl.textContent = rssi + ' dBm';
+
+            const icons = {
+                'walking': '🚶',
+                'sitting': '🪑',
+                'standing': '🧍'
+            };
+            icon.textContent = icons[activity] || '❓';
+
+            // Efeito visual
+            value.style.animation = 'none';
+            setTimeout(() => {
+                value.style.animation = 'pulse 0.5s';
+            }, 10);
+        }
+
+        async function connectSerial() {
+            const port = document.getElementById('serialPort').value;
+            const baud = document.getElementById('baudRate').value;
+            const loader = document.getElementById('connectLoader');
+
+            loader.style.display = 'inline-block';
+
+            try {
+                const response = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ port, baud: parseInt(baud) })
+                });
+
+                if (response.ok) {
+                    log('✓ Conectado com sucesso', 'success');
+                } else {
+                    log('✗ Falha ao conectar', 'error');
+                }
+            } catch (error) {
+                log(`✗ Erro: ${error.message}`, 'error');
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        async function loadModel() {
+            const path = document.getElementById('modelPath').value;
+            try {
+                const response = await fetch('/api/model/load', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path })
+                });
+
+                if (response.ok) {
+                    log('✓ Modelo carregado', 'success');
+                }
+            } catch (error) {
+                log(`✗ Erro: ${error.message}`, 'error');
+            }
+        }
+
+        function sendCommand(activity) {
+            socket.emit('send_command', { command: `LABEL:${activity}` });
+            log(`📤 Enviado: ${activity}`, 'info');
+        }
+
+        function log(message, type = 'info') {
+            const logBox = document.getElementById('eventLog');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const time = new Date().toLocaleTimeString('pt-BR');
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+            logBox.appendChild(entry);
+            logBox.scrollTop = logBox.scrollHeight;
+
+            while (logBox.children.length > 20) {
+                logBox.removeChild(logBox.firstChild);
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Chart.js
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        function initChart() {
+            const ctx = document.getElementById('csiChart').getContext('2d');
+            csiChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 20}, (_, i) => i),
+                    datasets: [{
+                        label: 'Amplitude',
+                        data: Array(20).fill(0),
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 0 },
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, max: 100 }
+                    }
+                }
+            });
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Inicialização
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        window.addEventListener('load', () => {
+            initChart();
+            log('🚀 Dashboard ao vivo iniciado', 'success');
+
+            // Atualizar dados periodicamente
+            setInterval(() => {
+                socket.emit('request_update');
+            }, 500);
+        });
+
+        // Evitar zoom no mobile
+        document.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    </script>
+</body>
+</html>
