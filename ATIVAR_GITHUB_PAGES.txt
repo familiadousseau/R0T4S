@@ -1,0 +1,72 @@
+═══════════════════════════════════════════════════════════════════
+         🚀 COMO TORNAR O APP ACESSÍVEL (Bem Fácil!)
+═══════════════════════════════════════════════════════════════════
+
+⚡ RESUMO:
+    Você faz 5 cliques no GitHub e o app fica disponível para todo mundo!
+
+═══════════════════════════════════════════════════════════════════
+
+✅ PASSO A PASSO:
+
+1️⃣  Abra o GITHUB:
+    https://github.com/familiadousseau/R0T4S
+
+2️⃣  Clique em "Settings" (Configurações)
+
+3️⃣  No lado ESQUERDO, procure "Pages"
+    └─ Clique em "Pages"
+
+4️⃣  Em "Build and deployment" (Construir e implantação):
+
+    Source (Fonte):
+    └─ Clique no dropdown
+    └─ Escolha: "Deploy from a branch"
+
+    Branch:
+    └─ Clique no primeiro dropdown
+    └─ Escolha: "main"
+
+    Pasta:
+    └─ Clique no segundo dropdown
+    └─ Escolha: "/ (root)"
+
+5️⃣  Clique em "Save" (Salvar)
+
+6️⃣  AGUARDE 1 MINUTO
+
+═══════════════════════════════════════════════════════════════════
+
+🎉 PRONTO!
+
+Você vai ver uma mensagem:
+"Your site is live at:
+ https://familiadousseau.github.io/R0T4S/"
+
+Agora todos podem acessar:
+https://familiadousseau.github.io/R0T4S/app.html
+
+═══════════════════════════════════════════════════════════════════
+
+❓ COMO USAR DEPOIS?
+
+Copie este link e compartilhe:
+https://familiadousseau.github.io/R0T4S/app.html
+
+Pronto! Funciona em qualquer iPhone, PC, Android, etc.
+
+═══════════════════════════════════════════════════════════════════
+
+📱 NO iPHONE DO SEU AMIGO:
+
+1. Compartilhe o link
+2. Ele abre no Safari
+3. Ele clica 🚶 🪑 🧍
+4. Ele vê a câmera térmica!
+5. Sem precisar de app, sem precisar de nada!
+
+═══════════════════════════════════════════════════════════════════
+
+Não é complicado! 😎
+
+Se não conseguir, é só seguir esses 5 passos no GitHub.
