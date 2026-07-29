@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wi-Fi CSI Human Activity Detection</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            background: #f5f5f5;
+            padding: 15px 25px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff4757;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background: #2ed573;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .activity-display {
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            color: white;
+            margin: 20px 0;
+        }
+
+        .activity-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        .activity-value {
+            font-size: 3em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .activity-icon {
+            font-size: 4em;
+            margin: 20px 0;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1em;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #e8f0f7;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .input-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        input, select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-box {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #999;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .log-box {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            height: 200px;
+            overflow-y: auto;
+            margin: 15px 0;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 3px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .log-time {
+            color: #888;
+            margin-right: 10px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .wide {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .activity-value {
+                font-size: 2em;
+            }
+
+            .controls {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛰️ Wi-Fi CSI Human Activity Detection</h1>
+            <p class="subtitle">Sistema de detecção de atividades através de paredes via Wi-Fi</p>
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-indicator" id="connectionStatus"></span>
+                    <span id="connectionText">Desconectado</span>
+                </div>
+                <div class="status-item">
+                    Atividade: <span id="currentActivity" style="color: #667eea; font-weight: bold;">Aguardando...</span>
+                </div>
+                <div class="status-item">
+                    Buffer: <span id="bufferSize">0</span> amostras
+                </div>
+            </div>
+        </header>
+
+        <div class="grid">
+            <!-- Detecção de Atividade -->
+            <div class="card wide">
+                <h2>🎯 Detecção de Atividade em Tempo Real</h2>
+                <div class="activity-display">
+                    <div class="activity-label">Atividade Detectada</div>
+                    <div class="activity-icon" id="activityIcon">❓</div>
+                    <div class="activity-value" id="activityValue">WAITING</div>
+                </div>
+            </div>
+
+            <!-- Conexão Serial -->
+            <div class="card">
+                <h2>🔌 Conexão Serial</h2>
+                <div class="input-group">
+                    <input type="text" id="serialPort" placeholder="/dev/ttyUSB0" value="/dev/ttyUSB0">
+                    <input type="number" id="baudRate" placeholder="Baud Rate" value="115200">
+                </div>
+                <div class="controls">
+                    <button class="btn btn-primary" id="connectBtn" onclick="connectSerial()">Conectar</button>
+                    <button class="btn btn-secondary" id="disconnectBtn" onclick="disconnectSerial()" disabled>Desconectar</button>
+                </div>
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="stat-label">Status</div>
+                        <div class="stat-value" id="connStatus">✗ Off</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Porta</div>
+                        <div class="stat-value" id="portDisplay">---</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modelo ML -->
+            <div class="card">
+                <h2>🤖 Modelo Machine Learning</h2>
+                <div class="input-group">
+                    <input type="text" id="modelPath" placeholder="Caminho do modelo" value="model.pkl">
+                    <button class="btn btn-primary" onclick="loadModel()" style="grid-column: 1 / -1;">Carregar Modelo</button>
+                </div>
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="stat-label">Status ML</div>
+                        <div class="stat-value" id="mlStatus">✗ Off</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Predições</div>
+                        <div class="stat-value" id="predictionCount">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CSI Data Chart -->
+            <div class="card wide">
+                <h2>📊 Gráfico de Amplitude CSI</h2>
+                <div class="chart-container">
+                    <canvas id="csiChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Estatísticas -->
+            <div class="card">
+                <h2>📈 Estatísticas RSSI</h2>
+                <div class="chart-container">
+                    <canvas id="rssiChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Histórico -->
+            <div class="card">
+                <h2>📋 Log de Eventos</h2>
+                <div class="log-box" id="eventLog">
+                    <div class="log-entry">
+                        <span class="log-time">[Aguardando...]</span>
+                        Servidor iniciado
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <button class="btn btn-secondary" style="width: 100%;" onclick="downloadHistory()">
+                        ⬇️ Baixar Histórico CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- Controle ESP32 -->
+            <div class="card">
+                <h2>🎮 Controle ESP32</h2>
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="sendCommand('walking')">🚶 Walking</button>
+                    <button class="btn btn-primary" onclick="sendCommand('sitting')">🪑 Sitting</button>
+                    <button class="btn btn-primary" onclick="sendCommand('standing')">🧍 Standing</button>
+                    <button class="btn btn-secondary" onclick="clearData()" style="grid-column: 1 / -1;">🗑️ Limpar Dados</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let csiChart, rssiChart;
+        let predictionCount = 0;
+        const maxHistoryPoints = 50;
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Inicializar Charts
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        function initCharts() {
+            const csiCtx = document.getElementById('csiChart').getContext('2d');
+            csiChart = new Chart(csiCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Amplitude CSI',
+                        data: [],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Amplitude' }
+                        }
+                    }
+                }
+            });
+
+            const rssiCtx = document.getElementById('rssiChart').getContext('2d');
+            rssiChart = new Chart(rssiCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'RSSI (dBm)',
+                        data: [],
+                        borderColor: '#764ba2',
+                        backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true }
+                    },
+                    scales: {
+                        y: {
+                            title: { display: true, text: 'RSSI (dBm)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Conexão Serial
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        async function connectSerial() {
+            const port = document.getElementById('serialPort').value;
+            const baud = document.getElementById('baudRate').value;
+
+            try {
+                const response = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ port, baud: parseInt(baud) })
+                });
+
+                if (response.ok) {
+                    updateConnectionStatus(true);
+                    addLog('✓ Conectado com sucesso', 'success');
+                } else {
+                    addLog('✗ Falha ao conectar', 'error');
+                }
+            } catch (error) {
+                addLog(`✗ Erro: ${error.message}`, 'error');
+            }
+        }
+
+        function disconnectSerial() {
+            updateConnectionStatus(false);
+            addLog('⊘ Desconectado', 'info');
+        }
+
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connectionStatus');
+            const text = document.getElementById('connectionText');
+            const btn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const connStatus = document.getElementById('connStatus');
+            const port = document.getElementById('serialPort').value;
+
+            if (connected) {
+                indicator.classList.add('connected');
+                text.textContent = 'Conectado';
+                btn.disabled = true;
+                disconnectBtn.disabled = false;
+                connStatus.textContent = '✓ Online';
+                document.getElementById('portDisplay').textContent = port;
+            } else {
+                indicator.classList.remove('connected');
+                text.textContent = 'Desconectado';
+                btn.disabled = false;
+                disconnectBtn.disabled = true;
+                connStatus.textContent = '✗ Offline';
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Modelo ML
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        async function loadModel() {
+            const path = document.getElementById('modelPath').value;
+            try {
+                const response = await fetch('/api/model/load', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path })
+                });
+
+                if (response.ok) {
+                    document.getElementById('mlStatus').textContent = '✓ Pronto';
+                    addLog(`✓ Modelo carregado: ${path}`, 'success');
+                } else {
+                    addLog(`✗ Falha ao carregar modelo`, 'error');
+                }
+            } catch (error) {
+                addLog(`✗ Erro: ${error.message}`, 'error');
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Atualização de Dados
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        async function updateDashboard() {
+            try {
+                // Status
+                const statusRes = await fetch('/api/status');
+                const status = await statusRes.json();
+
+                document.getElementById('currentActivity').textContent = status.activity.toUpperCase();
+                document.getElementById('bufferSize').textContent = status.buffer_size;
+                document.getElementById('activityValue').textContent = status.activity.toUpperCase();
+
+                // Atualizar ícone
+                const icon = {
+                    'walking': '🚶',
+                    'sitting': '🪑',
+                    'standing': '🧍',
+                    'Waiting...': '❓'
+                }[status.activity] || '❓';
+                document.getElementById('activityIcon').textContent = icon;
+
+                // Dados CSI
+                const dataRes = await fetch('/api/data');
+                const data = await dataRes.json();
+
+                if (data.data && data.data.length > 0) {
+                    const latest = data.data[data.data.length - 1];
+
+                    // Atualizar CSI Chart
+                    if (csiChart && latest.amplitudes) {
+                        const amps = latest.amplitudes.slice(0, 20);
+                        csiChart.data.labels = Array.from({ length: amps.length }, (_, i) => i);
+                        csiChart.data.datasets[0].data = amps;
+                        csiChart.update('none');
+                    }
+
+                    // Atualizar RSSI Chart
+                    if (rssiChart && data.data.length > 0) {
+                        const rssiData = data.data.slice(-maxHistoryPoints).map(d => d.rssi);
+                        const rssiLabels = data.data.slice(-maxHistoryPoints).map(d => d.time);
+                        rssiChart.data.labels = rssiLabels;
+                        rssiChart.data.datasets[0].data = rssiData;
+                        rssiChart.update('none');
+                    }
+
+                    if (status.activity !== 'Waiting...') {
+                        predictionCount++;
+                        document.getElementById('predictionCount').textContent = predictionCount;
+                    }
+                }
+
+                updateConnectionStatus(status.connected);
+            } catch (error) {
+                console.error('Update error:', error);
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Funções Auxiliares
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        async function sendCommand(activity) {
+            try {
+                await fetch('/api/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: `LABEL:${activity}` })
+                });
+                addLog(`📤 Enviado: ${activity}`, 'info');
+            } catch (error) {
+                addLog(`✗ Erro ao enviar: ${error.message}`, 'error');
+            }
+        }
+
+        function addLog(message, type = 'info') {
+            const logBox = document.getElementById('eventLog');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const time = new Date().toLocaleTimeString('pt-BR');
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+            logBox.appendChild(entry);
+            logBox.scrollTop = logBox.scrollHeight;
+
+            // Manter apenas últimas 50 linhas
+            while (logBox.children.length > 50) {
+                logBox.removeChild(logBox.firstChild);
+            }
+        }
+
+        async function downloadHistory() {
+            try {
+                const response = await fetch('/api/history');
+                const csv = await response.text();
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `wifi-csi-data-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                addLog('✓ Histórico baixado', 'success');
+            } catch (error) {
+                addLog(`✗ Erro ao baixar: ${error.message}`, 'error');
+            }
+        }
+
+        function clearData() {
+            if (confirm('Tem certeza que deseja limpar todos os dados?')) {
+                location.reload();
+                addLog('🗑️ Dados limpos', 'info');
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Inicialização
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        window.addEventListener('load', () => {
+            initCharts();
+            addLog('🚀 Dashboard iniciado', 'success');
+
+            // Atualizar a cada 500ms
+            setInterval(updateDashboard, 500);
+        });
+    </script>
+</body>
+</html>
