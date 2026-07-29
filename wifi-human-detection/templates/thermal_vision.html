@@ -2,9 +2,8 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>🔥 Visão Térmica WiFi</title>
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔥 Câmera Térmica 3D - WiFi Sensing</title>
     <style>
         * {
             margin: 0;
@@ -13,685 +12,848 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0a0a;
-            color: #fff;
+            font-family: 'Courier New', monospace;
+            background: #0a0e27;
+            color: #00ff41;
             overflow: hidden;
             height: 100vh;
         }
 
-        .container {
+        #container {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+            gap: 0;
+        }
+
+        #thermal-viewport {
+            flex: 1;
+            position: relative;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            border-right: 2px solid #00ff41;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #canvas-3d {
             width: 100%;
             height: 100%;
+            display: block;
+            background: #000;
+        }
+
+        .scanner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 255, 65, 0.02) 0px,
+                rgba(0, 255, 65, 0.02) 2px,
+                transparent 2px,
+                transparent 4px
+            );
+            animation: scan 8s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+
+        #control-panel {
+            width: 350px;
+            background: linear-gradient(180deg, #1a1f3a 0%, #0a0e27 100%);
+            border-left: 2px solid #00ff41;
+            padding: 20px;
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
         }
 
-        .header {
-            background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%);
-            padding: 15px 20px;
-            border-bottom: 2px solid #0f3460;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 4px 20px rgba(15, 52, 96, 0.5);
+        .panel-section {
+            margin-bottom: 25px;
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            padding: 15px;
+            background: rgba(0, 255, 65, 0.05);
+            border-radius: 5px;
         }
 
-        .header h1 {
-            font-size: 1.5em;
-            color: #00ff00;
-            text-shadow: 0 0 10px #00ff00;
-            font-family: 'Courier New', monospace;
+        .panel-title {
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #00ff41;
+            text-shadow: 0 0 10px #00ff41;
+            font-size: 14px;
             letter-spacing: 2px;
         }
 
-        .status {
+        .info-line {
+            margin: 8px 0;
+            font-size: 13px;
             display: flex;
-            gap: 15px;
+            justify-content: space-between;
             align-items: center;
-        }
-
-        .status-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(0, 255, 0, 0.1);
-            padding: 8px 15px;
-            border-radius: 8px;
-            border: 1px solid #00ff00;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
-        }
-
-        .indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #00ff00;
-            animation: pulse 1.5s infinite;
-            box-shadow: 0 0 10px #00ff00;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; box-shadow: 0 0 10px #00ff00; }
-            50% { opacity: 0.5; box-shadow: 0 0 20px #00ff00; }
-        }
-
-        .viewport {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .wall {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            max-width: 600px;
-            max-height: 500px;
-            background: linear-gradient(135deg, #1a2847 0%, #0f1923 100%);
-            border: 3px solid #00ff00;
-            border-radius: 12px;
-            box-shadow:
-                0 0 50px rgba(0, 255, 0, 0.3),
-                inset 0 0 50px rgba(0, 255, 0, 0.1);
-            overflow: hidden;
-        }
-
-        .wall::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background:
-                repeating-linear-gradient(
-                    0deg,
-                    transparent,
-                    transparent 2px,
-                    rgba(0, 255, 0, 0.03) 2px,
-                    rgba(0, 255, 0, 0.03) 4px
-                );
-            pointer-events: none;
-            animation: scanlines 8s linear infinite;
-        }
-
-        @keyframes scanlines {
-            0% { transform: translateY(0); }
-            100% { transform: translateY(10px); }
-        }
-
-        .heatmap-container {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-        }
-
-        canvas#heatmapCanvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-            filter: blur(2px);
-        }
-
-        .heat-legend {
-            position: absolute;
-            bottom: 15px;
-            left: 15px;
-            background: rgba(10, 10, 10, 0.8);
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #00ff00;
-            font-family: 'Courier New', monospace;
-            font-size: 0.8em;
-            z-index: 10;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin: 4px 0;
-        }
-
-        .legend-color {
-            width: 20px;
-            height: 10px;
-            border-radius: 2px;
-            border: 1px solid #333;
-        }
-
-        .sidebar {
-            width: 300px;
-            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-            border-left: 2px solid #0f3460;
-            padding: 20px;
-            overflow-y: auto;
-            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
-        }
-
-        .sidebar h2 {
-            color: #00ff00;
-            font-size: 1.1em;
-            margin-bottom: 15px;
-            text-shadow: 0 0 10px #00ff00;
-            font-family: 'Courier New', monospace;
-            border-bottom: 1px solid #00ff00;
-            padding-bottom: 10px;
-        }
-
-        .info-box {
-            background: rgba(0, 255, 0, 0.1);
-            border: 1px solid #00ff00;
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 15px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
         }
 
         .info-label {
-            color: #00ff00;
-            display: block;
-            margin-bottom: 3px;
-            font-weight: bold;
+            color: #00aa22;
+            flex: 1;
         }
 
         .info-value {
-            color: #00ff88;
-            font-size: 1.3em;
-            margin-left: 10px;
+            color: #00ff41;
+            font-weight: bold;
+            text-align: right;
+            flex: 1;
+        }
+
+        .activity-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .activity-walking {
+            background: #ff6b35;
+            color: #000;
+        }
+
+        .activity-sitting {
+            background: #2ed573;
+            color: #000;
+        }
+
+        .activity-standing {
+            background: #667eea;
+            color: #fff;
+        }
+
+        .activity-waiting {
+            background: #666;
+            color: #fff;
         }
 
         .button-group {
             display: flex;
             gap: 8px;
-            margin-top: 15px;
+            margin-top: 10px;
         }
 
         button {
             flex: 1;
             padding: 10px;
-            background: linear-gradient(135deg, #00ff00 0%, #00cc00 100%);
+            background: linear-gradient(135deg, #00ff41 0%, #00aa22 100%);
             color: #000;
             border: none;
-            border-radius: 6px;
-            font-weight: bold;
+            border-radius: 4px;
             cursor: pointer;
-            transition: all 0.2s;
+            font-weight: bold;
+            font-size: 12px;
             font-family: 'Courier New', monospace;
+            transition: all 0.3s;
             text-transform: uppercase;
-            font-size: 0.8em;
+            letter-spacing: 1px;
         }
 
         button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 255, 0, 0.4);
+            transform: scale(1.05);
+            box-shadow: 0 0 15px #00ff41;
         }
 
         button:active {
-            transform: translateY(0);
+            transform: scale(0.95);
         }
 
-        .log-box {
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid #00ff00;
-            border-radius: 6px;
-            padding: 10px;
-            height: 150px;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 0.8em;
+        button.secondary {
+            background: linear-gradient(135deg, #667eea 0%, #4c5fd5 100%);
+            color: #fff;
+        }
+
+        button.secondary:hover {
+            box-shadow: 0 0 15px #667eea;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 1s infinite;
+        }
+
+        .status-connected {
+            background: #00ff41;
+            box-shadow: 0 0 10px #00ff41;
+        }
+
+        .status-disconnected {
+            background: #ff4444;
+            box-shadow: 0 0 10px #ff4444;
+        }
+
+        .status-model-loaded {
+            background: #00ff41;
+            box-shadow: 0 0 10px #00ff41;
+        }
+
+        .status-model-unloaded {
+            background: #ffaa00;
+            box-shadow: 0 0 10px #ffaa00;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .thermal-scale {
             margin-top: 15px;
+            padding: 10px;
+            background: rgba(0, 255, 65, 0.05);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .scale-row {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+
+        .scale-color {
+            width: 20px;
+            height: 15px;
+            border-radius: 2px;
+            margin-right: 8px;
+            border: 1px solid rgba(0, 255, 65, 0.5);
+        }
+
+        .event-log {
+            flex: 1;
+            margin-top: 20px;
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            overflow-y: auto;
+            max-height: 150px;
         }
 
         .log-entry {
-            color: #00ff00;
-            margin: 3px 0;
-            padding: 2px 0;
+            font-size: 11px;
+            margin: 4px 0;
+            padding: 4px;
+            border-left: 2px solid #00ff41;
+            padding-left: 8px;
+            color: #00aa22;
         }
 
         .log-time {
-            color: #00ff88;
-            margin-right: 5px;
-        }
-
-        .activity-indicator {
-            display: flex;
-            gap: 8px;
-            margin-top: 15px;
-            justify-content: center;
-        }
-
-        .activity-btn {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: rgba(0, 255, 0, 0.2);
-            border: 2px solid #00ff00;
-            color: #00ff00;
-            font-size: 1.5em;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .activity-btn:hover {
-            background: rgba(0, 255, 0, 0.4);
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
-        }
-
-        .activity-btn.active {
-            background: #00ff00;
-            color: #000;
-            box-shadow: 0 0 30px rgba(0, 255, 0, 0.8);
+            color: #00ff41;
+            font-weight: bold;
         }
 
         @media (max-width: 1024px) {
-            .sidebar {
-                width: 250px;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .container {
+            #container {
                 flex-direction: column;
             }
 
-            .sidebar {
+            #thermal-viewport {
+                height: 60%;
+                border-right: none;
+                border-bottom: 2px solid #00ff41;
+            }
+
+            #control-panel {
                 width: 100%;
+                height: 40%;
                 border-left: none;
-                border-top: 2px solid #0f3460;
-                max-height: 40vh;
-                padding: 15px;
+                border-top: 2px solid #00ff41;
             }
+        }
 
-            .viewport {
-                flex: 1;
-            }
+        .distance-bar {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0, 255, 65, 0.05);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            border-radius: 4px;
+        }
 
-            .wall {
-                max-width: 100%;
-                max-height: 100%;
-            }
+        .distance-label {
+            font-size: 12px;
+            margin-bottom: 5px;
+            color: #00aa22;
+        }
+
+        .distance-bar-bg {
+            width: 100%;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #00ff41;
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .distance-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff41 0%, #ffff00 50%, #ff6b35 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 10px #00ff41;
+        }
+
+        .test-buttons {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .test-buttons button {
+            flex: 1;
+            padding: 8px;
+            font-size: 11px;
+        }
+
+        .camera-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border: 1px solid #00ff41;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #00ff41;
+            font-family: 'Courier New', monospace;
+            pointer-events: none;
+            z-index: 100;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🔥 VISÃO TÉRMICA - WiFi Sensing</h1>
-            <div class="status">
-                <div class="status-item">
-                    <span class="indicator" id="statusIndicator"></span>
-                    <span id="statusText">INICIALIZANDO...</span>
-                </div>
+    <div id="container">
+        <div id="thermal-viewport">
+            <canvas id="canvas-3d"></canvas>
+            <div class="scanner-overlay"></div>
+            <div class="camera-info">
+                <div>🔥 CÂMERA TÉRMICA 3D</div>
+                <div id="fps-counter" style="color: #ffff00;">FPS: 60</div>
             </div>
         </div>
 
-        <div style="display: flex; flex: 1;">
-            <div class="viewport">
-                <div class="wall">
-                    <div class="heatmap-container">
-                        <canvas id="heatmapCanvas"></canvas>
+        <div id="control-panel">
+            <div class="panel-section">
+                <div class="panel-title">⚙️ STATUS DO SISTEMA</div>
+                <div class="info-line">
+                    <span class="info-label">
+                        <span class="status-indicator status-disconnected" id="status-serial"></span>
+                        SERIAL
+                    </span>
+                    <span class="info-value" id="serial-status">DESCONECTADO</span>
+                </div>
+                <div class="info-line">
+                    <span class="info-label">
+                        <span class="status-indicator status-model-unloaded" id="status-model"></span>
+                        MODELO ML
+                    </span>
+                    <span class="info-value" id="model-status">NÃO CARREGADO</span>
+                </div>
+                <div class="button-group">
+                    <button id="btn-connect">🔌 CONECTAR</button>
+                    <button id="btn-load-model" class="secondary">🤖 CARREGAR</button>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">📊 DADOS EM TEMPO REAL</div>
+                <div class="info-line">
+                    <span class="info-label">ATIVIDADE</span>
+                    <span class="info-value" id="activity-text">AGUARDANDO</span>
+                </div>
+                <div id="activity-badge" class="activity-badge activity-waiting">WAITING</div>
+
+                <div class="info-line" style="margin-top: 12px;">
+                    <span class="info-label">RSSI (dBm)</span>
+                    <span class="info-value" id="rssi-value">-80</span>
+                </div>
+
+                <div class="distance-bar">
+                    <div class="distance-label">📏 DISTÂNCIA</div>
+                    <div class="distance-bar-bg">
+                        <div class="distance-bar-fill" id="distance-fill"></div>
                     </div>
-                    <div class="heat-legend">
-                        <div style="color: #00ff00; margin-bottom: 8px; font-weight: bold;">ESCALA TÉRMICA</div>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background: #0000ff;"></div>
-                            <span>Frio (-70 dBm)</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background: #00ff00;"></div>
-                            <span>Médio (-60 dBm)</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background: #ffff00;"></div>
-                            <span>Quente (-50 dBm)</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background: #ff0000;"></div>
-                            <span>Muito Quente (-40 dBm)</span>
-                        </div>
+                    <div style="text-align: center; margin-top: 5px; color: #00ff41; font-size: 12px;">
+                        <span id="distance-value">0.0</span> m
+                    </div>
+                </div>
+
+                <div class="info-line" style="margin-top: 12px;">
+                    <span class="info-label">AMOSTRAS</span>
+                    <span class="info-value" id="samples-value">0</span>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">🎮 SIMULAÇÃO</div>
+                <div class="test-buttons">
+                    <button onclick="simulateActivity('WALKING')" class="secondary">🚶</button>
+                    <button onclick="simulateActivity('SITTING')" class="secondary">🪑</button>
+                    <button onclick="simulateActivity('STANDING')" class="secondary">🧍</button>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">🌡️ ESCALA TÉRMICA</div>
+                <div class="thermal-scale">
+                    <div class="scale-row">
+                        <div class="scale-color" style="background: #0000ff;"></div>
+                        <span>Muito Frio (-70 dBm)</span>
+                    </div>
+                    <div class="scale-row">
+                        <div class="scale-color" style="background: #00ff00;"></div>
+                        <span>Médio (-60 dBm)</span>
+                    </div>
+                    <div class="scale-row">
+                        <div class="scale-color" style="background: #ffff00;"></div>
+                        <span>Quente (-50 dBm)</span>
+                    </div>
+                    <div class="scale-row">
+                        <div class="scale-color" style="background: #ff6b35;"></div>
+                        <span>Muito Quente (-40 dBm)</span>
                     </div>
                 </div>
             </div>
 
-            <div class="sidebar">
-                <h2>📊 DADOS</h2>
-
-                <div class="info-box">
-                    <span class="info-label">ATIVIDADE</span>
-                    <span class="info-value" id="activityValue">---</span>
-                </div>
-
-                <div class="info-box">
-                    <span class="info-label">RSSI</span>
-                    <span class="info-value" id="rssiValue">--- dBm</span>
-                </div>
-
-                <div class="info-box">
-                    <span class="info-label">DISTÂNCIA</span>
-                    <span class="info-value" id="distanceValue">--- m</span>
-                </div>
-
-                <div class="info-box">
-                    <span class="info-label">AMOSTRAS</span>
-                    <span class="info-value" id="samplesValue">0</span>
-                </div>
-
-                <h2 style="margin-top: 25px;">⚙️ CONTROLES</h2>
-
-                <button onclick="connectSerial()">🔌 Conectar</button>
-                <button onclick="loadModel()" style="margin-top: 8px;">🤖 Carregar</button>
-
-                <div class="activity-indicator">
-                    <button class="activity-btn" onclick="testActivity('walking')" title="Walk">🚶</button>
-                    <button class="activity-btn" onclick="testActivity('sitting')" title="Sit">🪑</button>
-                    <button class="activity-btn" onclick="testActivity('standing')" title="Stand">🧍</button>
-                </div>
-
-                <h2 style="margin-top: 25px;">📋 LOG</h2>
-                <div class="log-box" id="eventLog">
-                    <div class="log-entry">
-                        <span class="log-time">[INIT]</span>
-                        Visão Térmica ativada
-                    </div>
-                </div>
+            <div class="event-log">
+                <div class="panel-title">📋 LOG DE EVENTOS</div>
+                <div id="log-container"></div>
             </div>
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
     <script>
+        // 3D Scene Setup
+        let scene, camera, renderer;
+        let thermalPlane, thermalTexture, textureCanvas, textureCtx;
+        let frameCount = 0, lastFpsTime = Date.now();
+
+        // State
+        let currentActivity = "WAITING";
+        let currentRSSI = -80;
+        let modelLoaded = false;
+        let serialConnected = false;
+        let samplesCount = 0;
+
+        // WebSocket
         const socket = io();
-        const canvas = document.getElementById('heatmapCanvas');
-        const ctx = canvas.getContext('2d');
 
-        let heatmapData = [];
-        let currentActivity = 'waiting';
-        let currentRSSI = 0;
-        let dataHistory = [];
+        function initThreeJS() {
+            const canvas = document.getElementById('canvas-3d');
 
-        // Resize canvas
-        function resizeCanvas() {
-            const rect = canvas.getBoundingClientRect();
-            canvas.width = rect.width;
-            canvas.height = rect.height;
-            initHeatmap();
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0e27);
+            scene.fog = new THREE.Fog(0x0a0e27, 100, 200);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(
+                75,
+                canvas.clientWidth / canvas.clientHeight,
+                0.1,
+                1000
+            );
+            camera.position.set(0, 0, 8);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({
+                canvas: canvas,
+                antialias: true,
+                alpha: false
+            });
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.toneMapping = THREE.ReinhardToneMapping;
+            renderer.toneMappingExposure = 1.0;
+
+            createThermalScene();
+            setupLighting();
+            animationLoop();
         }
 
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
+        function createThermalScene() {
+            // Create thermal texture canvas
+            textureCanvas = document.createElement('canvas');
+            textureCanvas.width = 512;
+            textureCanvas.height = 512;
+            textureCtx = textureCanvas.getContext('2d');
 
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // Inicializar Heatmap
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // Create plane with thermal texture
+            const geometry = new THREE.PlaneGeometry(16, 12);
+            const material = new THREE.MeshStandardMaterial({
+                emissiveIntensity: 1.0,
+                metalness: 0.1,
+                roughness: 0.8
+            });
 
-        function initHeatmap() {
-            heatmapData = [];
-            for (let i = 0; i < canvas.width * canvas.height; i++) {
-                heatmapData[i] = 0;
-            }
+            // Initialize thermal texture
+            updateThermalTexture();
+            thermalPlane = new THREE.Mesh(geometry, material);
+            scene.add(thermalPlane);
         }
 
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // Desenhar Heatmap
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function createThermalTexture(intensity, offsetX = 0) {
+            // Clear canvas
+            textureCtx.fillStyle = '#000a14';
+            textureCtx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
 
-        function rssiToColor(rssi) {
-            // -70 dBm = azul (frio)
-            // -60 dBm = verde
-            // -50 dBm = amarelo
-            // -40 dBm = vermelho (quente)
+            const centerX = textureCanvas.width / 2 + offsetX;
+            const centerY = textureCanvas.height / 2;
 
-            rssi = Math.max(-80, Math.min(-40, rssi)); // Clamp: -80 a -40
-            const normalized = (rssi + 80) / 40; // 0 a 1
+            // Create thermal signature based on RSSI
+            const rssiNormalized = Math.max(0, Math.min(1, (currentRSSI + 80) / 40));
 
-            let r, g, b;
-
-            if (normalized < 0.33) {
-                // Azul a Verde
-                const t = normalized / 0.33;
-                r = 0;
-                g = Math.round(255 * t);
-                b = Math.round(255 * (1 - t));
-            } else if (normalized < 0.66) {
-                // Verde a Amarelo
-                const t = (normalized - 0.33) / 0.33;
-                r = Math.round(255 * t);
-                g = 255;
-                b = 0;
-            } else {
-                // Amarelo a Vermelho
-                const t = (normalized - 0.66) / 0.34;
-                r = 255;
-                g = Math.round(255 * (1 - t));
-                b = 0;
-            }
-
-            return { r, g, b };
-        }
-
-        function drawHeatmap() {
-            if (!canvas.width || !canvas.height) return;
-
-            // Gerar padrão de atividade
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-
-            // Limpar canvas
-            ctx.fillStyle = 'rgba(15, 25, 35, 0.9)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Criar gradiente radial baseado na atividade
-            const activityMap = {
-                'standing': { x: centerX, y: centerY + 30, radius: 80, intensity: 1.0 },
-                'sitting': { x: centerX, y: centerY + 50, radius: 70, intensity: 0.8 },
-                'walking': { x: centerX + Math.sin(Date.now() / 300) * 50, y: centerY + 30, radius: 90, intensity: 0.9 }
-            };
-
-            const activity = activityMap[currentActivity] || activityMap['standing'];
-
-            // Desenhar silhueta térmica
-            const gradient = ctx.createRadialGradient(
-                activity.x, activity.y, 0,
-                activity.x, activity.y, activity.radius
+            // Draw thermal blob
+            const gradient = textureCtx.createRadialGradient(
+                centerX, centerY, 10,
+                centerX, centerY, 200
             );
 
-            // Cores baseadas em RSSI
-            const hotColor = rssiToColor(currentRSSI - 5);
-            const warmColor = rssiToColor(currentRSSI - 15);
-            const coolColor = rssiToColor(currentRSSI - 30);
+            const color1 = rssiToThermalColor(rssiNormalized, 1.0);
+            const color2 = rssiToThermalColor(rssiNormalized, 0.6);
+            const color3 = rssiToThermalColor(rssiNormalized, 0.2);
 
-            gradient.addColorStop(0, `rgba(${hotColor.r}, ${hotColor.g}, ${hotColor.b}, 0.8)`);
-            gradient.addColorStop(0.5, `rgba(${warmColor.r}, ${warmColor.g}, ${warmColor.b}, 0.4)`);
-            gradient.addColorStop(1, `rgba(${coolColor.r}, ${coolColor.g}, ${coolColor.b}, 0)`);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(0.5, color2);
+            gradient.addColorStop(1, color3);
 
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            textureCtx.fillStyle = gradient;
+            textureCtx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
 
-            // Desenhar contorno da silhueta
-            ctx.strokeStyle = `rgba(0, 255, 0, 0.5)`;
-            ctx.lineWidth = 2;
+            // Add body-specific heat signature based on activity
+            if (currentActivity === 'WALKING') {
+                drawWalkingSignature(textureCtx, centerX, centerY, rssiNormalized);
+            } else if (currentActivity === 'SITTING') {
+                drawSittingSignature(textureCtx, centerX, centerY, rssiNormalized);
+            } else if (currentActivity === 'STANDING') {
+                drawStandingSignature(textureCtx, centerX, centerY, rssiNormalized);
+            }
+
+            // Update material texture
+            thermalTexture = new THREE.CanvasTexture(textureCanvas);
+            thermalTexture.magFilter = THREE.LinearFilter;
+            thermalTexture.minFilter = THREE.LinearFilter;
+            thermalPlane.material.emissiveMap = thermalTexture;
+            thermalPlane.material.needsUpdate = true;
+        }
+
+        function drawWalkingSignature(ctx, centerX, centerY, intensity) {
+            const offset = Math.sin(Date.now() / 400) * 80;
+
+            // Head
+            ctx.fillStyle = rssiToThermalColor(intensity * 0.95, 0.8);
             ctx.beginPath();
-            ctx.arc(activity.x, activity.y, activity.radius * 0.6, 0, Math.PI * 2);
-            ctx.stroke();
+            ctx.ellipse(centerX + offset, centerY - 100, 40, 50, 0, 0, Math.PI * 2);
+            ctx.fill();
 
-            // Efeito de pulso
-            const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
-            ctx.strokeStyle = `rgba(0, 255, 0, ${pulse * 0.3})`;
-            ctx.lineWidth = 1;
+            // Torso
+            ctx.fillStyle = rssiToThermalColor(intensity, 0.9);
             ctx.beginPath();
-            ctx.arc(activity.x, activity.y, activity.radius * 0.8, 0, Math.PI * 2);
-            ctx.stroke();
+            ctx.ellipse(centerX + offset * 0.5, centerY, 60, 80, 0, 0, Math.PI * 2);
+            ctx.fill();
 
-            // Distribuir pontos quentes adicionais
-            if (activity.intensity > 0) {
-                ctx.fillStyle = `rgba(255, 200, 0, ${0.3 * activity.intensity})`;
-                for (let i = 0; i < 20; i++) {
-                    const angle = (i / 20) * Math.PI * 2;
-                    const dist = activity.radius * 0.4 + Math.random() * 30;
-                    const x = activity.x + Math.cos(angle) * dist;
-                    const y = activity.y + Math.sin(angle) * dist;
-                    const size = Math.random() * 5 + 2;
-                    ctx.fillRect(x - size / 2, y - size / 2, size, size);
-                }
+            // Legs (animated)
+            const legOffset = Math.sin(Date.now() / 300) * 30;
+            ctx.fillStyle = rssiToThermalColor(intensity * 0.85, 0.7);
+            ctx.beginPath();
+            ctx.ellipse(centerX + offset + legOffset, centerY + 100, 35, 60, 0.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = rssiToThermalColor(intensity * 0.85, 0.7);
+            ctx.beginPath();
+            ctx.ellipse(centerX + offset - legOffset, centerY + 100, 35, 60, -0.2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawSittingSignature(ctx, centerX, centerY, intensity) {
+            // Head
+            ctx.fillStyle = rssiToThermalColor(intensity * 0.95, 0.8);
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY - 80, 40, 50, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Torso (compact)
+            ctx.fillStyle = rssiToThermalColor(intensity, 0.9);
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY + 20, 70, 70, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Legs (sitting)
+            ctx.fillStyle = rssiToThermalColor(intensity * 0.8, 0.7);
+            ctx.beginPath();
+            ctx.ellipse(centerX - 50, centerY + 120, 30, 40, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.ellipse(centerX + 50, centerY + 120, 30, 40, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawStandingSignature(ctx, centerX, centerY, intensity) {
+            // Head
+            ctx.fillStyle = rssiToThermalColor(intensity * 0.95, 0.8);
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY - 100, 40, 50, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Torso
+            ctx.fillStyle = rssiToThermalColor(intensity, 0.9);
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, 55, 85, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Legs
+            ctx.fillStyle = rssiToThermalColor(intensity * 0.85, 0.7);
+            ctx.beginPath();
+            ctx.ellipse(centerX - 30, centerY + 110, 28, 65, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.ellipse(centerX + 30, centerY + 110, 28, 65, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function rssiToThermalColor(intensity, alpha = 1.0) {
+            let r, g, b;
+
+            if (intensity < 0.2) {
+                r = 0; g = 0; b = 255; // Blue
+            } else if (intensity < 0.4) {
+                r = 0; g = 200; b = 100; // Cyan-Green
+            } else if (intensity < 0.6) {
+                r = 0; g = 255; b = 0; // Green
+            } else if (intensity < 0.8) {
+                r = 255; g = 255; b = 0; // Yellow
+            } else {
+                r = 255; g = 100; b = 0; // Orange-Red
+            }
+
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        function setupLighting() {
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0x00ff41, 0.4);
+            scene.add(ambientLight);
+
+            // Point light for thermal effect
+            const pointLight = new THREE.PointLight(0x00ff41, 2, 100);
+            pointLight.position.set(0, 0, 15);
+            scene.add(pointLight);
+
+            // Directional light
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.3);
+            dirLight.position.set(10, 10, 15);
+            scene.add(dirLight);
+        }
+
+        function updateThermalTexture() {
+            const offsetX = currentActivity === 'WALKING' ? Math.sin(Date.now() / 400) * 30 : 0;
+            createThermalTexture(1.0, offsetX);
+        }
+
+        function animationLoop() {
+            requestAnimationFrame(animationLoop);
+
+            // Update thermal visualization
+            updateThermalTexture();
+
+            // Subtle camera movement for depth
+            camera.position.x = Math.sin(Date.now() / 8000) * 0.5;
+            camera.position.y = Math.cos(Date.now() / 10000) * 0.3;
+
+            // Rotate plane slightly
+            thermalPlane.rotation.z += 0.0001;
+
+            renderer.render(scene, camera);
+
+            // Update FPS counter
+            frameCount++;
+            const now = Date.now();
+            if (now - lastFpsTime >= 1000) {
+                document.getElementById('fps-counter').textContent = `FPS: ${frameCount}`;
+                frameCount = 0;
+                lastFpsTime = now;
             }
         }
 
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // Cálculo de Distância
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function updateUI() {
+            const activity = currentActivity;
+            document.getElementById('activity-text').textContent = activity;
+
+            const badge = document.getElementById('activity-badge');
+            badge.textContent = activity;
+            badge.className = 'activity-badge activity-' + activity.toLowerCase();
+
+            document.getElementById('rssi-value').textContent = currentRSSI;
+
+            // Calculate distance from RSSI
+            const distance = calculateDistance(currentRSSI);
+            document.getElementById('distance-value').textContent = distance.toFixed(1);
+            document.getElementById('distance-fill').style.width = Math.min(100, distance * 10) + '%';
+
+            document.getElementById('samples-value').textContent = samplesCount;
+        }
 
         function calculateDistance(rssi) {
             const refRSSI = -50;
-            const pathLossExponent = 2;
-            const distance = Math.pow(10, ((refRSSI - rssi) / (10 * pathLossExponent)));
-            return Math.max(0, Math.min(10, distance));
+            const n = 2;
+            if (rssi === 0) return 0;
+            return Math.pow(10, (refRSSI - rssi) / (10 * n));
         }
 
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // WebSocket Events
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        socket.on('connect', () => {
-            log('CONEXÃO ESTABELECIDA', 'success');
-            updateStatus(true);
-        });
-
-        socket.on('disconnect', () => {
-            log('CONEXÃO PERDIDA', 'error');
-            updateStatus(false);
-        });
-
-        socket.on('activity_detected', (data) => {
-            currentActivity = data.activity;
-            currentRSSI = data.rssi;
-            updateDisplay(data);
-        });
-
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // Atualizar UI
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        function updateDisplay(data) {
-            document.getElementById('activityValue').textContent = data.activity.toUpperCase();
-            document.getElementById('rssiValue').textContent = data.rssi + ' dBm';
-            document.getElementById('samplesValue').textContent = data.buffer_size;
-
-            const distance = calculateDistance(data.rssi);
-            document.getElementById('distanceValue').textContent = distance.toFixed(1) + ' m';
-
-            // Atualizar indicadores
-            document.querySelectorAll('.activity-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`.activity-btn[onclick*="${data.activity}"]`)?.classList.add('active');
-
-            drawHeatmap();
-        }
-
-        function updateStatus(online) {
-            const indicator = document.getElementById('statusIndicator');
-            const text = document.getElementById('statusText');
-
-            if (online) {
-                indicator.style.animation = 'pulse 1.5s infinite';
-                text.textContent = 'CONECTADO';
-            } else {
-                indicator.style.animation = 'none';
-                text.textContent = 'DESCONECTADO';
-            }
-        }
-
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // Controles
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        async function connectSerial() {
-            try {
-                const response = await fetch('/api/connect', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ port: '/dev/ttyUSB0', baud: 115200 })
-                });
-                if (response.ok) log('SERIAL CONECTADO', 'success');
-            } catch (error) {
-                log('ERRO: ' + error.message, 'error');
-            }
-        }
-
-        async function loadModel() {
-            try {
-                const response = await fetch('/api/model/load', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ path: 'model.pkl' })
-                });
-                if (response.ok) log('MODELO CARREGADO', 'success');
-            } catch (error) {
-                log('ERRO: ' + error.message, 'error');
-            }
-        }
-
-        function testActivity(activity) {
-            currentActivity = activity;
-            currentRSSI = -50 - Math.random() * 20;
-            updateDisplay({
-                activity,
-                rssi: Math.round(currentRSSI),
-                buffer_size: 42
-            });
-            log(`TESTE: ${activity.toUpperCase()}`, 'info');
-        }
-
-        function log(message, type = 'info') {
-            const logBox = document.getElementById('eventLog');
+        function addLog(message) {
+            const container = document.getElementById('log-container');
             const entry = document.createElement('div');
             entry.className = 'log-entry';
             const time = new Date().toLocaleTimeString('pt-BR');
-            entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
-            logBox.appendChild(entry);
-            logBox.scrollTop = logBox.scrollHeight;
+            entry.innerHTML = `<span class="log-time">${time}</span> - ${message}`;
+            container.insertBefore(entry, container.firstChild);
 
-            while (logBox.children.length > 15) {
-                logBox.removeChild(logBox.firstChild);
+            if (container.children.length > 10) {
+                container.removeChild(container.lastChild);
             }
         }
 
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // Loop de Animação
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        function animate() {
-            drawHeatmap();
-            requestAnimationFrame(animate);
-        }
-
-        window.addEventListener('load', () => {
-            log('🔥 SISTEMA ATIVADO', 'success');
-            animate();
-
-            // Atualizar dados
-            setInterval(() => {
-                socket.emit('request_update');
-            }, 500);
+        // WebSocket Events
+        socket.on('connect', () => {
+            console.log('✓ Conectado ao servidor');
+            addLog('✓ Conectado ao servidor');
         });
 
-        // Evitar zoom
-        document.addEventListener('touchmove', (e) => {
-            if (e.touches.length > 1) e.preventDefault();
-        }, { passive: false });
+        socket.on('connection_status', (data) => {
+            serialConnected = data.connected;
+            updateConnectionUI();
+            if (data.connected) {
+                addLog('✓ Serial conectado: ' + data.port);
+            } else {
+                addLog('✗ Serial desconectado');
+            }
+        });
+
+        socket.on('model_loaded', (data) => {
+            modelLoaded = data.success;
+            updateConnectionUI();
+            if (data.success) {
+                addLog('✓ Modelo ML carregado');
+            } else {
+                addLog('✗ Erro ao carregar modelo');
+            }
+        });
+
+        socket.on('activity_detected', (data) => {
+            currentActivity = data.activity || currentActivity;
+            currentRSSI = data.rssi || currentRSSI;
+            samplesCount = data.buffer_size || samplesCount;
+            updateUI();
+            addLog(`📊 ${data.activity} | RSSI: ${data.rssi}`);
+        });
+
+        socket.on('data_update', (data) => {
+            currentActivity = data.activity;
+            currentRSSI = data.rssi;
+            updateUI();
+        });
+
+        function updateConnectionUI() {
+            const serialIndicator = document.getElementById('status-serial');
+            const modelIndicator = document.getElementById('status-model');
+
+            if (serialConnected) {
+                serialIndicator.className = 'status-indicator status-connected';
+                document.getElementById('serial-status').textContent = 'CONECTADO';
+            } else {
+                serialIndicator.className = 'status-indicator status-disconnected';
+                document.getElementById('serial-status').textContent = 'DESCONECTADO';
+            }
+
+            if (modelLoaded) {
+                modelIndicator.className = 'status-indicator status-model-loaded';
+                document.getElementById('model-status').textContent = 'CARREGADO';
+            } else {
+                modelIndicator.className = 'status-indicator status-model-unloaded';
+                document.getElementById('model-status').textContent = 'NÃO CARREGADO';
+            }
+        }
+
+        // Button Events
+        document.getElementById('btn-connect').addEventListener('click', () => {
+            fetch('/api/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ port: '/dev/ttyUSB0', baud: 115200 })
+            }).then(r => r.json()).then(data => {
+                addLog(data.success ? '🔌 Conectando...' : '✗ Erro na conexão');
+            });
+        });
+
+        document.getElementById('btn-load-model').addEventListener('click', () => {
+            fetch('/api/model/load', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: 'model.pkl' })
+            }).then(r => r.json()).then(data => {
+                addLog(data.success ? '🤖 Carregando modelo...' : '✗ Erro ao carregar modelo');
+            });
+        });
+
+        function simulateActivity(activity) {
+            currentActivity = activity;
+
+            // Simulate RSSI variation
+            const rssiValues = {
+                'WALKING': -55 + Math.random() * 10,
+                'SITTING': -60 + Math.random() * 10,
+                'STANDING': -58 + Math.random() * 10
+            };
+
+            currentRSSI = rssiValues[activity] || -60;
+            updateUI();
+            addLog(`🎮 Simulando: ${activity}`);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const canvas = document.getElementById('canvas-3d');
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        });
+
+        // Initialize
+        window.addEventListener('load', () => {
+            initThreeJS();
+            updateConnectionUI();
+            updateUI();
+            addLog('🔥 Câmera Térmica 3D Iniciada');
+        });
     </script>
 </body>
 </html>
