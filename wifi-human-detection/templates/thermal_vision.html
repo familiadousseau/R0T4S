@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>🔥 Visão Térmica WiFi</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%);
+            padding: 15px 20px;
+            border-bottom: 2px solid #0f3460;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(15, 52, 96, 0.5);
+        }
+
+        .header h1 {
+            font-size: 1.5em;
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
+        }
+
+        .status {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 255, 0, 0.1);
+            padding: 8px 15px;
+            border-radius: 8px;
+            border: 1px solid #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00ff00;
+            animation: pulse 1.5s infinite;
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 10px #00ff00; }
+            50% { opacity: 0.5; box-shadow: 0 0 20px #00ff00; }
+        }
+
+        .viewport {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .wall {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            max-height: 500px;
+            background: linear-gradient(135deg, #1a2847 0%, #0f1923 100%);
+            border: 3px solid #00ff00;
+            border-radius: 12px;
+            box-shadow:
+                0 0 50px rgba(0, 255, 0, 0.3),
+                inset 0 0 50px rgba(0, 255, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .wall::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 255, 0, 0.03) 2px,
+                    rgba(0, 255, 0, 0.03) 4px
+                );
+            pointer-events: none;
+            animation: scanlines 8s linear infinite;
+        }
+
+        @keyframes scanlines {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(10px); }
+        }
+
+        .heatmap-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        canvas#heatmapCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            filter: blur(2px);
+        }
+
+        .heat-legend {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            background: rgba(10, 10, 10, 0.8);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8em;
+            z-index: 10;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 4px 0;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 10px;
+            border-radius: 2px;
+            border: 1px solid #333;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            border-left: 2px solid #0f3460;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .sidebar h2 {
+            color: #00ff00;
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px #00ff00;
+            font-family: 'Courier New', monospace;
+            border-bottom: 1px solid #00ff00;
+            padding-bottom: 10px;
+        }
+
+        .info-box {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #00ff00;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .info-label {
+            color: #00ff00;
+            display: block;
+            margin-bottom: 3px;
+            font-weight: bold;
+        }
+
+        .info-value {
+            color: #00ff88;
+            font-size: 1.3em;
+            margin-left: 10px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        button {
+            flex: 1;
+            padding: 10px;
+            background: linear-gradient(135deg, #00ff00 0%, #00cc00 100%);
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            font-size: 0.8em;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 255, 0, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .log-box {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #00ff00;
+            border-radius: 6px;
+            padding: 10px;
+            height: 150px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8em;
+            margin-top: 15px;
+        }
+
+        .log-entry {
+            color: #00ff00;
+            margin: 3px 0;
+            padding: 2px 0;
+        }
+
+        .log-time {
+            color: #00ff88;
+            margin-right: 5px;
+        }
+
+        .activity-indicator {
+            display: flex;
+            gap: 8px;
+            margin-top: 15px;
+            justify-content: center;
+        }
+
+        .activity-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(0, 255, 0, 0.2);
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            font-size: 1.5em;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .activity-btn:hover {
+            background: rgba(0, 255, 0, 0.4);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+        }
+
+        .activity-btn.active {
+            background: #00ff00;
+            color: #000;
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.8);
+        }
+
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 250px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                border-left: none;
+                border-top: 2px solid #0f3460;
+                max-height: 40vh;
+                padding: 15px;
+            }
+
+            .viewport {
+                flex: 1;
+            }
+
+            .wall {
+                max-width: 100%;
+                max-height: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔥 VISÃO TÉRMICA - WiFi Sensing</h1>
+            <div class="status">
+                <div class="status-item">
+                    <span class="indicator" id="statusIndicator"></span>
+                    <span id="statusText">INICIALIZANDO...</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; flex: 1;">
+            <div class="viewport">
+                <div class="wall">
+                    <div class="heatmap-container">
+                        <canvas id="heatmapCanvas"></canvas>
+                    </div>
+                    <div class="heat-legend">
+                        <div style="color: #00ff00; margin-bottom: 8px; font-weight: bold;">ESCALA TÉRMICA</div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #0000ff;"></div>
+                            <span>Frio (-70 dBm)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #00ff00;"></div>
+                            <span>Médio (-60 dBm)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #ffff00;"></div>
+                            <span>Quente (-50 dBm)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #ff0000;"></div>
+                            <span>Muito Quente (-40 dBm)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <h2>📊 DADOS</h2>
+
+                <div class="info-box">
+                    <span class="info-label">ATIVIDADE</span>
+                    <span class="info-value" id="activityValue">---</span>
+                </div>
+
+                <div class="info-box">
+                    <span class="info-label">RSSI</span>
+                    <span class="info-value" id="rssiValue">--- dBm</span>
+                </div>
+
+                <div class="info-box">
+                    <span class="info-label">DISTÂNCIA</span>
+                    <span class="info-value" id="distanceValue">--- m</span>
+                </div>
+
+                <div class="info-box">
+                    <span class="info-label">AMOSTRAS</span>
+                    <span class="info-value" id="samplesValue">0</span>
+                </div>
+
+                <h2 style="margin-top: 25px;">⚙️ CONTROLES</h2>
+
+                <button onclick="connectSerial()">🔌 Conectar</button>
+                <button onclick="loadModel()" style="margin-top: 8px;">🤖 Carregar</button>
+
+                <div class="activity-indicator">
+                    <button class="activity-btn" onclick="testActivity('walking')" title="Walk">🚶</button>
+                    <button class="activity-btn" onclick="testActivity('sitting')" title="Sit">🪑</button>
+                    <button class="activity-btn" onclick="testActivity('standing')" title="Stand">🧍</button>
+                </div>
+
+                <h2 style="margin-top: 25px;">📋 LOG</h2>
+                <div class="log-box" id="eventLog">
+                    <div class="log-entry">
+                        <span class="log-time">[INIT]</span>
+                        Visão Térmica ativada
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const canvas = document.getElementById('heatmapCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let heatmapData = [];
+        let currentActivity = 'waiting';
+        let currentRSSI = 0;
+        let dataHistory = [];
+
+        // Resize canvas
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            initHeatmap();
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Inicializar Heatmap
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        function initHeatmap() {
+            heatmapData = [];
+            for (let i = 0; i < canvas.width * canvas.height; i++) {
+                heatmapData[i] = 0;
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Desenhar Heatmap
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        function rssiToColor(rssi) {
+            // -70 dBm = azul (frio)
+            // -60 dBm = verde
+            // -50 dBm = amarelo
+            // -40 dBm = vermelho (quente)
+
+            rssi = Math.max(-80, Math.min(-40, rssi)); // Clamp: -80 a -40
+            const normalized = (rssi + 80) / 40; // 0 a 1
+
+            let r, g, b;
+
+            if (normalized < 0.33) {
+                // Azul a Verde
+                const t = normalized / 0.33;
+                r = 0;
+                g = Math.round(255 * t);
+                b = Math.round(255 * (1 - t));
+            } else if (normalized < 0.66) {
+                // Verde a Amarelo
+                const t = (normalized - 0.33) / 0.33;
+                r = Math.round(255 * t);
+                g = 255;
+                b = 0;
+            } else {
+                // Amarelo a Vermelho
+                const t = (normalized - 0.66) / 0.34;
+                r = 255;
+                g = Math.round(255 * (1 - t));
+                b = 0;
+            }
+
+            return { r, g, b };
+        }
+
+        function drawHeatmap() {
+            if (!canvas.width || !canvas.height) return;
+
+            // Gerar padrão de atividade
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            // Limpar canvas
+            ctx.fillStyle = 'rgba(15, 25, 35, 0.9)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Criar gradiente radial baseado na atividade
+            const activityMap = {
+                'standing': { x: centerX, y: centerY + 30, radius: 80, intensity: 1.0 },
+                'sitting': { x: centerX, y: centerY + 50, radius: 70, intensity: 0.8 },
+                'walking': { x: centerX + Math.sin(Date.now() / 300) * 50, y: centerY + 30, radius: 90, intensity: 0.9 }
+            };
+
+            const activity = activityMap[currentActivity] || activityMap['standing'];
+
+            // Desenhar silhueta térmica
+            const gradient = ctx.createRadialGradient(
+                activity.x, activity.y, 0,
+                activity.x, activity.y, activity.radius
+            );
+
+            // Cores baseadas em RSSI
+            const hotColor = rssiToColor(currentRSSI - 5);
+            const warmColor = rssiToColor(currentRSSI - 15);
+            const coolColor = rssiToColor(currentRSSI - 30);
+
+            gradient.addColorStop(0, `rgba(${hotColor.r}, ${hotColor.g}, ${hotColor.b}, 0.8)`);
+            gradient.addColorStop(0.5, `rgba(${warmColor.r}, ${warmColor.g}, ${warmColor.b}, 0.4)`);
+            gradient.addColorStop(1, `rgba(${coolColor.r}, ${coolColor.g}, ${coolColor.b}, 0)`);
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Desenhar contorno da silhueta
+            ctx.strokeStyle = `rgba(0, 255, 0, 0.5)`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(activity.x, activity.y, activity.radius * 0.6, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Efeito de pulso
+            const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
+            ctx.strokeStyle = `rgba(0, 255, 0, ${pulse * 0.3})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(activity.x, activity.y, activity.radius * 0.8, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Distribuir pontos quentes adicionais
+            if (activity.intensity > 0) {
+                ctx.fillStyle = `rgba(255, 200, 0, ${0.3 * activity.intensity})`;
+                for (let i = 0; i < 20; i++) {
+                    const angle = (i / 20) * Math.PI * 2;
+                    const dist = activity.radius * 0.4 + Math.random() * 30;
+                    const x = activity.x + Math.cos(angle) * dist;
+                    const y = activity.y + Math.sin(angle) * dist;
+                    const size = Math.random() * 5 + 2;
+                    ctx.fillRect(x - size / 2, y - size / 2, size, size);
+                }
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Cálculo de Distância
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        function calculateDistance(rssi) {
+            const refRSSI = -50;
+            const pathLossExponent = 2;
+            const distance = Math.pow(10, ((refRSSI - rssi) / (10 * pathLossExponent)));
+            return Math.max(0, Math.min(10, distance));
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // WebSocket Events
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        socket.on('connect', () => {
+            log('CONEXÃO ESTABELECIDA', 'success');
+            updateStatus(true);
+        });
+
+        socket.on('disconnect', () => {
+            log('CONEXÃO PERDIDA', 'error');
+            updateStatus(false);
+        });
+
+        socket.on('activity_detected', (data) => {
+            currentActivity = data.activity;
+            currentRSSI = data.rssi;
+            updateDisplay(data);
+        });
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Atualizar UI
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        function updateDisplay(data) {
+            document.getElementById('activityValue').textContent = data.activity.toUpperCase();
+            document.getElementById('rssiValue').textContent = data.rssi + ' dBm';
+            document.getElementById('samplesValue').textContent = data.buffer_size;
+
+            const distance = calculateDistance(data.rssi);
+            document.getElementById('distanceValue').textContent = distance.toFixed(1) + ' m';
+
+            // Atualizar indicadores
+            document.querySelectorAll('.activity-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`.activity-btn[onclick*="${data.activity}"]`)?.classList.add('active');
+
+            drawHeatmap();
+        }
+
+        function updateStatus(online) {
+            const indicator = document.getElementById('statusIndicator');
+            const text = document.getElementById('statusText');
+
+            if (online) {
+                indicator.style.animation = 'pulse 1.5s infinite';
+                text.textContent = 'CONECTADO';
+            } else {
+                indicator.style.animation = 'none';
+                text.textContent = 'DESCONECTADO';
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Controles
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        async function connectSerial() {
+            try {
+                const response = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ port: '/dev/ttyUSB0', baud: 115200 })
+                });
+                if (response.ok) log('SERIAL CONECTADO', 'success');
+            } catch (error) {
+                log('ERRO: ' + error.message, 'error');
+            }
+        }
+
+        async function loadModel() {
+            try {
+                const response = await fetch('/api/model/load', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: 'model.pkl' })
+                });
+                if (response.ok) log('MODELO CARREGADO', 'success');
+            } catch (error) {
+                log('ERRO: ' + error.message, 'error');
+            }
+        }
+
+        function testActivity(activity) {
+            currentActivity = activity;
+            currentRSSI = -50 - Math.random() * 20;
+            updateDisplay({
+                activity,
+                rssi: Math.round(currentRSSI),
+                buffer_size: 42
+            });
+            log(`TESTE: ${activity.toUpperCase()}`, 'info');
+        }
+
+        function log(message, type = 'info') {
+            const logBox = document.getElementById('eventLog');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const time = new Date().toLocaleTimeString('pt-BR');
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+            logBox.appendChild(entry);
+            logBox.scrollTop = logBox.scrollHeight;
+
+            while (logBox.children.length > 15) {
+                logBox.removeChild(logBox.firstChild);
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Loop de Animação
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        function animate() {
+            drawHeatmap();
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('load', () => {
+            log('🔥 SISTEMA ATIVADO', 'success');
+            animate();
+
+            // Atualizar dados
+            setInterval(() => {
+                socket.emit('request_update');
+            }, 500);
+        });
+
+        // Evitar zoom
+        document.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 1) e.preventDefault();
+        }, { passive: false });
+    </script>
+</body>
+</html>

@@ -195,6 +195,11 @@ def pose_only():
     """Apenas visualizador de pose minimalista"""
     return render_template('pose_visualizer.html', local_ip=LOCAL_IP)
 
+@app.route('/thermal')
+def thermal_vision():
+    """Visualização térmica tipo raio-x"""
+    return render_template('thermal_vision.html', local_ip=LOCAL_IP)
+
 @app.route('/api/status')
 def get_status():
     return jsonify({
