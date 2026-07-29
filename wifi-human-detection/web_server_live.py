@@ -185,6 +185,16 @@ def serial_reader_thread():
 def index():
     return render_template('dashboard_live.html', local_ip=LOCAL_IP)
 
+@app.route('/pose')
+def pose_visualizer():
+    """Dashboard com visualizador de pose"""
+    return render_template('dashboard_com_pose.html', local_ip=LOCAL_IP)
+
+@app.route('/pose_only')
+def pose_only():
+    """Apenas visualizador de pose minimalista"""
+    return render_template('pose_visualizer.html', local_ip=LOCAL_IP)
+
 @app.route('/api/status')
 def get_status():
     return jsonify({

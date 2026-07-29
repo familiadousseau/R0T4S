@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>🛰️ WiFi Sensing - Pose Visual</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.3em;
+            color: #667eea;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #f5f5f5;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4757;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.online {
+            background: #2ed573;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        /* Visualizador de Pose Principal */
+        .pose-main {
+            grid-column: 1 / -1;
+            background: linear-gradient(180deg, #f8f8f8 0%, #f0f0f0 100%);
+            padding: 40px 20px;
+            min-height: 350px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pose-canvas-large {
+            width: 100%;
+            height: 280px;
+            max-width: 400px;
+        }
+
+        .activity-display-main {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 15px;
+        }
+
+        .distance-display {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin-top: 20px;
+            font-size: 1.1em;
+        }
+
+        .distance-item {
+            text-align: center;
+        }
+
+        .distance-label {
+            color: #999;
+            font-size: 0.85em;
+            margin-bottom: 5px;
+        }
+
+        .distance-value {
+            font-size: 1.6em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        /* Grid de 2 colunas para mobile */
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:active {
+            transform: scale(0.95);
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+
+        .log-box {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.8em;
+            height: 100px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            margin: 2px 0;
+        }
+
+        .log-time {
+            color: #888;
+            margin-right: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛰️ WiFi Sensing - Visualizador de Pose</h1>
+        <div class="status-badge">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Conectando...</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Pose Principal -->
+        <div class="card pose-main">
+            <div class="activity-display-main" id="activityMain">AGUARDANDO</div>
+            <canvas id="poseCanvasLarge" class="pose-canvas-large"></canvas>
+            <div class="distance-display">
+                <div class="distance-item">
+                    <div class="distance-label">Distância</div>
+                    <div class="distance-value" id="distanceMain">--</div>
+                </div>
+                <div class="distance-item">
+                    <div class="distance-label">RSSI</div>
+                    <div class="distance-value" id="rssiMain">--</div>
+                </div>
+                <div class="distance-item">
+                    <div class="distance-label">Buffer</div>
+                    <div class="distance-value" id="bufferMain">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico CSI -->
+        <div class="card">
+            <h2>📊 Amplitude CSI</h2>
+            <div class="chart-container">
+                <canvas id="csiChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Controles -->
+        <div class="card">
+            <h2>🔌 Conexão</h2>
+            <input type="text" id="serialPort" placeholder="Porta" value="/dev/ttyUSB0">
+            <input type="number" id="baudRate" placeholder="Baud" value="115200">
+            <button class="btn btn-primary" onclick="connectSerial()">Conectar</button>
+            <div style="margin-top: 10px; font-size: 0.85em; color: #666;" id="connStatus">Desconectado</div>
+        </div>
+
+        <!-- Modelo ML -->
+        <div class="card">
+            <h2>🤖 Modelo ML</h2>
+            <input type="text" id="modelPath" placeholder="Caminho" value="model.pkl">
+            <button class="btn btn-primary" onclick="loadModel()">Carregar</button>
+            <div style="margin-top: 10px; font-size: 0.85em; color: #666;" id="modelStatus">Não carregado</div>
+        </div>
+
+        <!-- Log -->
+        <div class="card">
+            <h2>📋 Log</h2>
+            <div class="log-box" id="eventLog">
+                <div class="log-entry"><span class="log-time">[INIT]</span>Dashboard iniciado</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const canvasLarge = document.getElementById('poseCanvasLarge');
+        const ctxLarge = canvasLarge.getContext('2d');
+        let csiChart = null;
+
+        // Redimensionar canvas
+        function resizeCanvas() {
+            const rect = canvasLarge.getBoundingClientRect();
+            canvasLarge.width = rect.width;
+            canvasLarge.height = rect.height;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Desenhar Silhueta (mesma função do pose_visualizer)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        function drawStickFigure(activity) {
+            const w = canvasLarge.width;
+            const h = canvasLarge.height;
+            ctxLarge.clearRect(0, 0, w, h);
+
+            const centerX = w / 2;
+            const centerY = h / 2.5;
+            const headRadius = 25;
+            const bodyLength = 60;
+            const armLength = 35;
+            const legLength = 50;
+
+            ctxLarge.strokeStyle = '#667eea';
+            ctxLarge.lineWidth = 4;
+            ctxLarge.lineCap = 'round';
+            ctxLarge.lineJoin = 'round';
+            ctxLarge.fillStyle = 'rgba(102, 126, 234, 0.2)';
+
+            // Cabeça
+            ctxLarge.beginPath();
+            ctxLarge.arc(centerX, centerY - bodyLength - 30, headRadius, 0, Math.PI * 2);
+            ctxLarge.fill();
+            ctxLarge.stroke();
+
+            // Corpo
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX, centerY - bodyLength - 5);
+            ctxLarge.lineTo(centerX, centerY + 10);
+            ctxLarge.stroke();
+
+            if (activity === 'standing') {
+                drawStanding(centerX, centerY, armLength, legLength);
+            } else if (activity === 'sitting') {
+                drawSitting(centerX, centerY, armLength, legLength);
+            } else if (activity === 'walking') {
+                drawWalking(centerX, centerY, armLength, legLength);
+            }
+        }
+
+        function drawStanding(centerX, centerY, armLength, legLength) {
+            ctxLarge.strokeStyle = '#667eea';
+            ctxLarge.lineWidth = 4;
+
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX, centerY - 40);
+            ctxLarge.lineTo(centerX - armLength, centerY);
+            ctxLarge.stroke();
+
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX, centerY - 40);
+            ctxLarge.lineTo(centerX + armLength, centerY);
+            ctxLarge.stroke();
+
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX - 10, centerY + 10);
+            ctxLarge.lineTo(centerX - 10, centerY + legLength);
+            ctxLarge.stroke();
+
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX + 10, centerY + 10);
+            ctxLarge.lineTo(centerX + 10, centerY + legLength);
+            ctxLarge.stroke();
+        }
+
+        function drawSitting(centerX, centerY, armLength, legLength) {
+            ctxLarge.strokeStyle = '#2ed573';
+            ctxLarge.lineWidth = 4;
+
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX, centerY - 30);
+            ctxLarge.lineTo(centerX - armLength * 0.7, centerY + 20);
+            ctxLarge.stroke();
+
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX, centerY - 30);
+            ctxLarge.lineTo(centerX + armLength * 0.7, centerY + 20);
+            ctxLarge.stroke();
+
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX - 10, centerY + 10);
+            ctxLarge.lineTo(centerX - 20, centerY + 40);
+            ctxLarge.stroke();
+
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX + 10, centerY + 10);
+            ctxLarge.lineTo(centerX + 20, centerY + 40);
+            ctxLarge.stroke();
+        }
+
+        function drawWalking(centerX, centerY, armLength, legLength) {
+            ctxLarge.strokeStyle = '#ffa502';
+            ctxLarge.lineWidth = 4;
+
+            const time = Date.now() / 500 % Math.PI * 2;
+            const armRotation = Math.sin(time) * 20;
+
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX, centerY - 40);
+            ctxLarge.lineTo(centerX - armLength + armRotation, centerY - 5);
+            ctxLarge.stroke();
+
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX, centerY - 40);
+            ctxLarge.lineTo(centerX + armLength - armRotation, centerY - 5);
+            ctxLarge.stroke();
+
+            const legRotation = Math.sin(time + Math.PI / 2) * 15;
+
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX - 5, centerY + 10);
+            ctxLarge.lineTo(centerX - 5 + legRotation, centerY + legLength);
+            ctxLarge.stroke();
+
+            ctxLarge.beginPath();
+            ctxLarge.moveTo(centerX + 5, centerY + 10);
+            ctxLarge.lineTo(centerX + 5 - legRotation, centerY + legLength);
+            ctxLarge.stroke();
+        }
+
+        function calculateDistance(rssi) {
+            const refRSSI = -50;
+            const pathLossExponent = 2;
+            const distance = Math.pow(10, ((refRSSI - rssi) / (10 * pathLossExponent)));
+            return Math.max(0, Math.min(10, distance));
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // WebSocket & UI Updates
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        socket.on('connect', () => {
+            log('✓ Conectado', 'success');
+            updateStatus(true);
+        });
+
+        socket.on('activity_detected', (data) => {
+            updateDisplay(data.activity, data.rssi, data.buffer_size);
+        });
+
+        socket.on('connection_status', (data) => {
+            document.getElementById('connStatus').textContent = data.connected ? '✓ Online' : '✗ Offline';
+        });
+
+        socket.on('model_loaded', (data) => {
+            document.getElementById('modelStatus').textContent = data.success ? '✓ Carregado' : '✗ Erro';
+        });
+
+        function updateStatus(online) {
+            const dot = document.getElementById('statusDot');
+            if (online) {
+                dot.classList.add('online');
+                document.getElementById('statusText').textContent = '✓ Online';
+            } else {
+                dot.classList.remove('online');
+                document.getElementById('statusText').textContent = '✗ Offline';
+            }
+        }
+
+        function updateDisplay(activity, rssi, buffer) {
+            document.getElementById('activityMain').textContent = activity.toUpperCase();
+            document.getElementById('rssiMain').textContent = rssi + ' dBm';
+            document.getElementById('bufferMain').textContent = buffer;
+
+            const distance = calculateDistance(rssi);
+            document.getElementById('distanceMain').textContent = distance.toFixed(1) + ' m';
+
+            drawStickFigure(activity);
+        }
+
+        async function connectSerial() {
+            const port = document.getElementById('serialPort').value;
+            const baud = document.getElementById('baudRate').value;
+
+            try {
+                const response = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ port, baud: parseInt(baud) })
+                });
+                if (response.ok) log('✓ Conectado', 'success');
+            } catch (error) {
+                log('✗ Erro: ' + error.message, 'error');
+            }
+        }
+
+        async function loadModel() {
+            const path = document.getElementById('modelPath').value;
+            try {
+                const response = await fetch('/api/model/load', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path })
+                });
+                if (response.ok) log('✓ Modelo carregado', 'success');
+            } catch (error) {
+                log('✗ Erro: ' + error.message, 'error');
+            }
+        }
+
+        function log(msg, type) {
+            const box = document.getElementById('eventLog');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const time = new Date().toLocaleTimeString('pt-BR');
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${msg}`;
+            box.appendChild(entry);
+            box.scrollTop = box.scrollHeight;
+            while (box.children.length > 10) box.removeChild(box.firstChild);
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('csiChart').getContext('2d');
+            csiChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 20}, (_, i) => i),
+                    datasets: [{
+                        label: 'Amplitude',
+                        data: Array(20).fill(0),
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 0 },
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, max: 100 } }
+                }
+            });
+        }
+
+        window.addEventListener('load', () => {
+            drawStickFigure('waiting');
+            initChart();
+            log('🚀 Dashboard iniciado', 'success');
+
+            setInterval(() => {
+                drawStickFigure(document.getElementById('activityMain').textContent.toLowerCase());
+            }, 50);
+
+            setInterval(() => {
+                socket.emit('request_update');
+            }, 500);
+        });
+    </script>
+</body>
+</html>
