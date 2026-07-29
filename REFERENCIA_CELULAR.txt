@@ -1,0 +1,137 @@
+═══════════════════════════════════════════════════════════════
+  🏠 SISTEMA DE DETECÇÃO DE PRESENÇA EM CASA
+  Guia de Referência Rápida para Celular
+═══════════════════════════════════════════════════════════════
+
+🔥 COMO USAR:
+
+1️⃣  ABRA O NAVEGADOR
+    Chrome, Safari, Firefox, qualquer um
+
+2️⃣  DIGITE NA BARRA DE ENDEREÇO:
+    http://192.168.1.100:5000/thermal
+
+    ⚠️  SUBSTITUA 192.168.1.100 PELO IP QUE APARECEU NO TERMINAL
+    (ou use: http://localhost:5000/thermal se estiver no PC)
+
+3️⃣  CLIQUE "🔌 CONECTAR"
+    Aguarde aparecer: ✓ Serial conectado
+
+4️⃣  CLIQUE "🤖 CARREGAR"
+    Aguarde aparecer: ✓ Modelo carregado
+
+5️⃣  PRONTO! AGORA VEJA A CÂMERA TÉRMICA
+
+═══════════════════════════════════════════════════════════════
+
+📊 ENTENDER A IMAGEM:
+
+🔴 VERMELHO/LARANJA = Pessoa MUY perto (< 3m)
+🟡 AMARELO        = Pessoa perto (3-5m)
+🟢 VERDE          = Pessoa normal (5-10m)
+🟦 AZUL           = Pessoa longe (10m+)
+⚫ PRETO          = Ninguém / Sem sinal
+
+═══════════════════════════════════════════════════════════════
+
+🎮 TESTAR A CÂMERA:
+
+Clique nos botões:
+  🚶  = Simula alguém caminhando
+  🪑  = Simula alguém sentado
+  🧍  = Simula alguém em pé
+
+═══════════════════════════════════════════════════════════════
+
+📱 DADOS QUE VÊ:
+
+ATIVIDADE: O que a pessoa está fazendo
+  - WALKING = Caminhando
+  - SITTING = Sentado
+  - STANDING = Em pé
+  - WAITING = Nenhuma atividade (ninguém em casa?)
+
+RSSI: Força do sinal WiFi
+  - Quanto mais NEGATIVO = mais longe
+  - Quanto menos NEGATIVO = mais perto
+  (Ex: -50 dBm = perto, -80 dBm = longe)
+
+DISTÂNCIA: Aproximadamente a quantos metros está a pessoa
+
+AMOSTRAS: Quantas medidas foram coletadas
+
+═══════════════════════════════════════════════════════════════
+
+⚠️ PROBLEMAS COMUNS:
+
+❌ "Não abre a página"
+   ✓ Conecte ao WiFi de casa
+   ✓ Verifique o IP (veja no terminal do PC)
+   ✓ Tente http://localhost:5000 se no PC
+
+❌ "Mostra desconectado"
+   ✓ Clique "🔌 CONECTAR" no painel
+   ✓ Aguarde "✓ Serial conectado"
+
+❌ "Modelo não carrega"
+   ✓ Clique "🤖 CARREGAR"
+   ✓ Se ainda não funcionar, teste com 🚶
+
+❌ "A câmera térmica não mostra nada"
+   ✓ Clique "🚶 Simular" para testar
+   ✓ Mova a mão perto do ESP32
+
+═══════════════════════════════════════════════════════════════
+
+🌐 ACESSAR DE FORA DE CASA:
+
+OPÇÃO 1: VPN (FÁCIL)
+  1. Instale um app VPN (ExpressVPN, NordVPN, etc)
+  2. Conecte à VPN
+  3. Acesse http://192.168.1.100:5000/thermal
+
+OPÇÃO 2: ngrok (SEM CONFIGURAR ROTEADOR)
+  1. No terminal do PC, rode: ngrok http 5000
+  2. Você vai receber um link como: http://abc123def456.ngrok.io/thermal
+  3. Use esse link de qualquer lugar!
+
+═══════════════════════════════════════════════════════════════
+
+💡 DICAS:
+
+✓ Deixe o PC/Raspberry ligado 24/7 para monitorar sempre
+✓ A primeira vez que acessa demora um pouco para carregar
+✓ Melhor usar em WiFi 2.4GHz (mais confiável)
+✓ Quanto mais perto do ESP32, melhor a detecção
+✓ Teste os botões 🚶 🪑 🧍 para entender como funciona
+
+═══════════════════════════════════════════════════════════════
+
+📞 TECLAS DE ATALHO:
+
+F11              = Tela cheia (melhor visualizar)
+Ctrl + Refresh   = Recarregar a página
+Ctrl + -         = Diminuir zoom
+Ctrl + +         = Aumentar zoom
+
+═══════════════════════════════════════════════════════════════
+
+🎯 CHECKLIST:
+
+☐ Celular conectado ao WiFi de casa
+☐ Navegador aberto
+☐ Digitei o IP correto
+☐ Câmera térmica apareceu
+☐ Cliquei "🔌 CONECTAR"
+☐ Cliquei "🤖 CARREGAR"
+☐ Testei com 🚶 Simular
+☐ Vi a silhueta se mover
+
+═══════════════════════════════════════════════════════════════
+
+Criado em: 29 de Julho de 2025
+Versão: 1.0
+Status: ✅ Pronto para usar
+
+DÚVIDAS? Leia o arquivo GUIA_COMPLETO_INICIO.md no seu PC
+═══════════════════════════════════════════════════════════════

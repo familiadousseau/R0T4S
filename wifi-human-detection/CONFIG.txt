@@ -1,0 +1,69 @@
+# ⚙️ ARQUIVO DE CONFIGURAÇÃO
+# Edite este arquivo se precisar mudar as configurações
+
+# ==========================================
+# PORTA USB (Onde o ESP32 está conectado)
+# ==========================================
+# Windows: COM3, COM4, etc (abra Gerenciador de Dispositivos)
+# Linux/Mac: /dev/ttyUSB0, /dev/ttyUSB1, etc
+# Para descobrir no Linux/Mac: ls /dev/tty*
+
+SERIAL_PORT = /dev/ttyUSB0
+
+# ==========================================
+# VELOCIDADE DE COMUNICAÇÃO (baud rate)
+# ==========================================
+# Geralmente 115200 para ESP32
+# NÃO MUDE ISSO se não souber o que está fazendo!
+
+BAUD_RATE = 115200
+
+# ==========================================
+# PORTA DO SERVIDOR WEB
+# ==========================================
+# Padrão: 5000
+# Se 5000 estiver em uso, mude para 5001, 5002, etc
+
+WEB_PORT = 5000
+
+# ==========================================
+# ARQUIVO DO MODELO MACHINE LEARNING
+# ==========================================
+# Arquivo que contém o modelo treinado
+# Se não existir, o sistema funciona em modo simulação
+
+MODEL_FILE = model.pkl
+
+# ==========================================
+# BUFFER DE DADOS
+# ==========================================
+# Quantas amostras guardar em memória
+# Quanto maior, mais memória gasta
+# Padrão: 200 (recomendado)
+
+BUFFER_SIZE = 200
+
+# ==========================================
+# MODO DEBUG
+# ==========================================
+# true = mostra mais mensagens no terminal
+# false = modo silencioso
+
+DEBUG = true
+
+# ==========================================
+# HOST (Onde o servidor vai escutar)
+# ==========================================
+# 0.0.0.0 = acessível de qualquer lugar
+# 127.0.0.1 = apenas do próprio computador
+# Deixe como está!
+
+HOST = 0.0.0.0
+
+# ==========================================
+# NOTAS
+# ==========================================
+# 1. Depois de editar, reinicie o servidor
+# 2. Se mudar a porta, acesse http://IP:NOVAPORTÀ/thermal
+# 3. Se mudar a porta serial, configure o ESP32 antes
+# 4. Dúvidas? Leia GUIA_COMPLETO_INICIO.md
