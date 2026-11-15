@@ -1,0 +1,11 @@
+builds/*
+!builds/README.md
+tools/fel-probe/*.o
+tools/fel-probe/*.elf
+__pycache__/
+*.pyc
+# nunca versionar dumps do aparelho
+*.dump
+nand-raw-*.bin
+brom-*.bin
+sd-backup-*.bin
